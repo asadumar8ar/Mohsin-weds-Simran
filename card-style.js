@@ -3,42 +3,35 @@
 window.CARD_LOADED_STYLE = true;
 
 window.CARD_CSS = [
-  "/* ============ BASE ============ */",
+  "/* ============ RESET & BASE ============ */",
   "*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}",
-  "html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}",
-  "body{font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;line-height:1.7;background:var(--ivory);color:var(--ink);overflow-x:hidden;-webkit-font-smoothing:antialiased}",
+  "html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;background:var(--plum-deep,#2A0E1C)}",
+  "body{font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;line-height:1.7;background:var(--ivory,#FAF3EA);color:var(--ink,#3A1426);overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}",
   "body.locked{overflow:hidden;height:100vh}",
   "img{max-width:100%;display:block}",
-  "button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}",
+  "button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;-webkit-tap-highlight-color:transparent}",
   "a{color:inherit;text-decoration:none}",
-  ":focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:2px}",
+  ":focus-visible{outline:2px solid var(--gold,#C9A24B);outline-offset:3px;border-radius:2px}",
   ".sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}",
-  "canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60;opacity:0;transition:opacity 1.2s ease}",
-  "canvas#fx.on{opacity:1}",
-  "video.bgvideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;mix-blend-mode:screen;opacity:.55;pointer-events:none;z-index:0}",
-  "video.bgvideo.off{display:none}",
-  ".sweep{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:5}",
-  ".sweep::before{content:'';position:absolute;top:-20%;left:-40%;width:40%;height:140%;background:linear-gradient(105deg,transparent 0%,rgba(240,213,138,0) 30%,rgba(240,213,138,0.55) 50%,rgba(240,213,138,0) 70%,transparent 100%);transform:translateX(-120%) skewX(-18deg);animation:sweepMove 2.6s ease-in-out forwards}",
-  "@keyframes sweepMove{to{transform:translateX(420%) skewX(-18deg)}}",
-  ".reveal{opacity:0;transform:translateY(16px);transition:opacity 600ms ease,transform 600ms ease}",
-  ".reveal.in{opacity:1;transform:translateY(0)}",
-  "section{position:relative}",
-  ".ivory-section{background:var(--ivory);color:var(--ink);padding:64px 22px;position:relative}",
-  ".plum-section{background:var(--plum);color:var(--ivory);padding:64px 22px;position:relative;overflow:hidden}",
-  ".divider{display:flex;align-items:center;justify-content:center;gap:14px;margin:0 auto 28px;max-width:280px}",
-  ".divider::before,.divider::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}",
-  ".divider span{width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px rgba(201,162,75,0.6)}",
-  ".script{font-family:'Pinyon Script',cursive;font-weight:400}",
-  ".arabic{font-family:'Amiri',serif;direction:rtl;line-height:2}",
-  ".urdu{font-family:'Noto Nastaliq Urdu',serif;direction:rtl;line-height:2.2}",
-  ".kufi{font-family:'Reem Kufi',sans-serif}",
-  ".eyebrow{font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold-dim);font-family:'Cormorant Garamond',serif;font-weight:600}",
 
   "/* ============ THEMES ============ */",
   "[data-theme=gulabi]{--ivory:#FAF3EA;--rose-dust:#D9A0A6;--rose-deep:#8E2E4A;--gold:#C9A24B;--gold-light:#F0D58A;--gold-dim:#8A6E32;--ink:#3A1426;--ink-soft:#6B4556;--plum:#3A1426;--plum-deep:#2A0E1C;--plum-mid:#4A1E32;--dusk-a:#3A1426;--dusk-b:#8E2E4A}",
   "[data-theme=emerald]{--ivory:#F6F1E4;--rose-dust:#A8C0A0;--rose-deep:#1E5C3F;--gold:#C9A24B;--gold-light:#EFD9A0;--gold-dim:#87692E;--ink:#13241C;--ink-soft:#3E5248;--plum:#0F3D2A;--plum-deep:#072318;--plum-mid:#185238;--dusk-a:#0F3D2A;--dusk-b:#1E5C3F}",
   "[data-theme=midnight]{--ivory:#F2F0E8;--rose-dust:#B8C0D8;--rose-deep:#2A3E6E;--gold:#C6B27A;--gold-light:#E8DCAE;--gold-dim:#8A7A48;--ink:#141A2E;--ink-soft:#3C4560;--plum:#0F1A33;--plum-deep:#070E1E;--plum-mid:#1A2950;--dusk-a:#0F1A33;--dusk-b:#2A3E6E}",
   "[data-theme=ivory-sage]{--ivory:#FBF8F0;--rose-dust:#C9CDB8;--rose-deep:#5C6B4A;--gold:#B89A4A;--gold-light:#E8D9A8;--gold-dim:#7E6A34;--ink:#2E3326;--ink-soft:#5A6150;--plum:#3D4232;--plum-deep:#2A2E22;--plum-mid:#4C5340;--dusk-a:#3D4232;--dusk-b:#5C6B4A}",
+
+  "/* ============ SHARED HELPERS ============ */",
+  "canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60;opacity:0;transition:opacity 1.2s ease}",
+  "canvas#fx.on{opacity:1}",
+  "video.bgvideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;mix-blend-mode:screen;opacity:.55;pointer-events:none;z-index:0}",
+  "video.bgvideo.off{display:none}",
+  ".reveal{opacity:0;transform:translateY(16px);transition:opacity 600ms ease,transform 600ms ease}",
+  ".reveal.in{opacity:1;transform:translateY(0)}",
+  "section{position:relative}",
+  ".script{font-family:'Pinyon Script',cursive;font-weight:400}",
+  ".arabic{font-family:'Amiri',serif;direction:rtl;line-height:2}",
+  ".urdu{font-family:'Noto Nastaliq Urdu',serif;direction:rtl;line-height:2.2}",
+  ".kufi{font-family:'Reem Kufi',sans-serif}",
 
   "/* ============ ARRIVAL ============ */",
   "#arrival{position:fixed;inset:0;z-index:100;background:linear-gradient(165deg,var(--plum-deep) 0%,var(--dusk-a) 45%,var(--dusk-b) 100%);display:flex;align-items:center;justify-content:center;overflow:hidden;perspective:1200px;transition:opacity 900ms ease,visibility 900ms ease}",
@@ -109,9 +102,6 @@ window.CARD_CSS = [
   ".arch .arch-content .ayah-ref{font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);font-weight:600}",
   ".arch-bloom{position:absolute;top:50%;left:50%;width:200px;height:200px;margin:-100px 0 0 -100px;border-radius:50%;background:radial-gradient(circle,rgba(240,213,138,0.7),transparent 70%);opacity:0;pointer-events:none;z-index:1}",
   "@keyframes archBloom{0%{opacity:0;transform:scale(0.5)}40%{opacity:0.8}100%{opacity:0;transform:scale(2.5)}}",
-  ".corridor-fallback{display:none;background:var(--plum);color:var(--ivory);padding:52px 22px}",
-  ".corridor-fallback .fallback-block{max-width:560px;margin:0 auto 40px;text-align:center;padding:30px 22px;border:1px solid var(--gold);border-radius:50% 50% 8px 8px/22% 22% 4px 4px;background:rgba(26,8,16,0.6)}",
-  ".corridor-fallback .fallback-block:last-child{margin-bottom:0}",
 
   "/* ============ SCRATCH ============ */",
   "#scratchWrap{position:relative;background:var(--plum);padding:70px 22px 80px;text-align:center;overflow:hidden}",
@@ -129,6 +119,11 @@ window.CARD_CSS = [
   "#revealBtn{margin-top:20px;padding:11px 24px;border-radius:999px;border:1px solid var(--gold-light);background:transparent;color:var(--gold-light);font-family:'Cormorant Garamond',serif;font-size:13px;letter-spacing:0.16em;text-transform:uppercase;font-weight:600;transition:background 200ms ease;z-index:4;position:relative}",
   "#revealBtn:hover{background:rgba(240,213,138,0.12)}",
   ".petal-burst{position:absolute;width:10px;height:10px;border-radius:50% 0 50% 50%;background:linear-gradient(135deg,var(--rose-dust),var(--rose-deep));pointer-events:none;z-index:5;opacity:0}",
+
+  "/* ============ SWEEP ============ */",
+  ".sweep{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:5}",
+  ".sweep::before{content:'';position:absolute;top:-20%;left:-40%;width:40%;height:140%;background:linear-gradient(105deg,transparent 0%,rgba(240,213,138,0) 30%,rgba(240,213,138,0.55) 50%,rgba(240,213,138,0) 70%,transparent 100%);transform:translateX(-120%) skewX(-18deg);animation:sweepMove 2.6s ease-in-out forwards}",
+  "@keyframes sweepMove{to{transform:translateX(420%) skewX(-18deg)}}",
 
   "/* ============ PROGRAMME ============ */",
   "#programme{background:linear-gradient(180deg,#F3E9D6,var(--ivory) 30%,var(--ivory) 70%,#F3E9D6);padding:70px 20px;position:relative;overflow:hidden}",
@@ -275,3 +270,5 @@ window.CARD_CSS = [
   "  .arch{position:relative;top:auto;left:auto;margin:20px auto;transform:none !important;opacity:1 !important;filter:none !important}",
   "}"
 ].join("\n");
+
+// END OF FILE card-style.js
