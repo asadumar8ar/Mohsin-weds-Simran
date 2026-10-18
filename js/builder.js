@@ -1,128 +1,223 @@
 /* ============================================================
    NIKAH CARD BUILDER — builder.js
+   The editor: renders form fields, live preview, download, autosave.
 
-   This file is the editor. It:
-   - Loads card.css as text (used for the live preview AND the export).
-   - Reads/writes the working card data.
-   - Renders the editor panels (Basic, Events, Story and Photos,
-     Music, Contacts and RSVP, Theme).
-   - Shows the live card inside a sandboxed iframe.
-   - Downloads a single standalone HTML file.
-   - Autosaves text to localStorage and clears the draft after download.
+   Robustness rules followed here:
+   1. Every uncaught error shows in a red box at the top.
+   2. The editor UI is built BEFORE any network fetch.
+   3. DOM elements are found by content, and created if missing.
+   4. Missing card.js shows a clear message, never a spinner.
+   5. card.css is fetched with an 8s timeout and a CSS fallback.
+   6. The "Preparing your card" loader is always hidden at the end.
 
-   It uses only window.DEFAULT_CARD and window.buildCardHTML from
-   card.js. It never imports anything else.
+   Only ES2017 syntax is used (no optional chaining, no ??, no
+   replaceAll, no top-level await, no class fields).
    ============================================================ */
 
 (function () {
   'use strict';
 
-  /* ==========================================================
-     1. CONSTANTS
-     ========================================================== */
+  /* ============================================================
+     1. GLOBAL ERROR HANDLERS
+     ============================================================ */
 
-  var STORAGE_KEY = 'nikahCardDraft';
-
-  var PHOTO_MAX_DIM = 1200;                // longest side in pixels
-  var PHOTO_QUALITY = 0.75;                // JPEG quality
-  var MUSIC_MAX_BYTES = 3 * 1024 * 1024;   // 3 MB
-  var TOTAL_MAX_BYTES = 8 * 1024 * 1024;   // 8 MB
-  var MAX_PHOTOS = 8;
-
-  var PREVIEW_DEBOUNCE = 400;              // ms between last keystroke and preview
-  var DRAFT_DEBOUNCE = 700;                // ms between last keystroke and draft save
-
-  var TABS = [
-    { id: 'basic',        label: 'Basic' },
-    { id: 'events',       label: 'Events' },
-    { id: 'story-photos', label: 'Story & Photos' },
-    { id: 'music',        label: 'Music' },
-    { id: 'contacts',     label: 'Contacts & RSVP' },
-    { id: 'theme',        label: 'Theme' }
-  ];
-
-  var THEMES = [
-    { id: 'emerald',    label: 'Emerald' },
-    { id: 'midnight',   label: 'Midnight' },
-    { id: 'ivory-sage', label: 'Ivory Sage' },
-    { id: 'rose-gold',  label: 'Rose Gold' }
-  ];
-
-  /* ==========================================================
-     2. STATE
-     ========================================================== */
-
-  var data = null;           // working copy of the card
-  var cssText = '';          // contents of card.css, loaded once
-  var previewTimer = 0;
-  var draftTimer = 0;
-  var firstPreviewShown = false;
-
-  var els = {
-    previewFrame: null,
-    previewLoading: null,
-    editorPanel: null,
-    editorBody: null,
-    editorTabs: null,
-    editorClose: null,
-    editorScrim: null,
-    editFab: null,
-    downloadBtn: null,
-    resetBtn: null,
-    editorStatus: null,
-    toast: null
+  window.onerror = function (message, file, line, col) {
+    try {
+      showError('Error: ' + message + '  (' + file + ':' + line + ':' + col + ')');
+    } catch (ignore) {}
   };
 
-  /* ==========================================================
-     3. SMALL HELPERS
-     ========================================================== */
+  window.addEventListener('unhandledrejection', function (event) {
+    try {
+      var reason = event.reason;
+      var msg = reason && reason.message ? reason.message : String(reason);
+      showError('Unhandled promise rejection: ' + msg);
+    } catch (ignore) {}
+  });
 
-  function el(tag, className, textContent) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (textContent !== undefined && textContent !== null) {
-      node.textContent = String(textContent);
-    }
-    return node;
-  }
-
-  function str(value, fallback) {
-    if (typeof value === 'string') return value;
-    if (value === null || value === undefined) return fallback || '';
-    return String(value);
-  }
-
-  function isObj(value) {
-    return !!value && typeof value === 'object' && !Array.isArray(value);
-  }
-
-  function clone(value) {
-    if (value === null || typeof value !== 'object') return value;
-    if (typeof structuredClone === 'function') {
-      try { return structuredClone(value); } catch (e) { /* fall through */ }
-    }
-    return JSON.parse(JSON.stringify(value));
-  }
-
-  // Deep merge used to layer a draft over DEFAULT_CARD.
-  function deepMerge(base, extra) {
-    if (!isObj(extra)) return base;
-    var out = Array.isArray(base) ? base.slice() : Object.assign({}, base);
-    Object.keys(extra).forEach(function (key) {
-      var value = extra[key];
-      if (isObj(value) && isObj(out[key])) {
-        out[key] = deepMerge(out[key], value);
-      } else if (Array.isArray(value)) {
-        out[key] = value.slice();
-      } else {
-        out[key] = value;
+  function showError(message) {
+    try {
+      var box = document.getElementById('nk-error-box');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'nk-error-box';
+        box.style.cssText =
+          'position:fixed;top:0;left:0;right:0;z-index:99999;' +
+          'background:#c0392b;color:#fff;padding:10px 14px;' +
+          'font-family:monospace;font-size:12px;line-height:1.5;' +
+          'white-space:pre-wrap;max-height:40vh;overflow-y:auto;' +
+          'box-shadow:0 2px 12px rgba(0,0,0,0.5);';
+        document.body.appendChild(box);
       }
-    });
-    return out;
+      var stamp = new Date().toLocaleTimeString();
+      box.textContent += '[' + stamp + '] ' + message + '\n';
+    } catch (e) {
+      try { console.error(message); } catch (e2) {}
+    }
   }
 
-  // "Ahmed Khan" -> "ahmed-khan"
-  function slug(value) {
+  /* ============================================================
+     2. CONSTANTS
+     ============================================================ */
+
+  var STORAGE_KEY = 'nikahCardDraft';
+  var PHOTO_MAX = 1200;
+  var PHOTO_QUALITY = 0.75;
+  var MUSIC_MAX = 3 * 1024 * 1024;
+  var TOTAL_MAX = 8 * 1024 * 1024;
+  var MAX_PHOTOS = 8;
+
+  var VALID_THEMES = ['emerald', 'midnight', 'ivory-sage', 'rose-gold'];
+
+  // Which keys of DEFAULT_CARD belong in which tab.
+  var TABS = [
+    { id: 'basic', label: 'Basic', keys: [
+      'sealInitials', 'bismillah', 'salam', 'ayah',
+      'inviteEn', 'inviteRoman', 'host',
+      'person1', 'person2', 'dua', 'footer'
+    ] },
+    { id: 'events', label: 'Events', keys: ['events'] },
+    { id: 'story-photos', label: 'Story and Photos', keys: ['story', 'gallery'] },
+    { id: 'music', label: 'Music', keys: ['music'] },
+    { id: 'contacts', label: 'Contacts and RSVP', keys: ['rsvp', 'contacts'] },
+    { id: 'theme', label: 'Theme', keys: ['theme'] }
+  ];
+
+  // Friendly labels for keys. Falls back to humanize().
+  var LABELS = {
+    sealInitials: 'Seal initials',
+    bismillah: 'Bismillah',
+    salam: 'Salam greeting',
+    ayah: 'Ayah',
+    inviteEn: 'English invitation',
+    inviteRoman: 'Roman (Hinglish) invitation',
+    host: 'Host family line',
+    person1: 'Person 1',
+    person2: 'Person 2',
+    events: 'Events',
+    story: 'Our Story',
+    gallery: 'Photos',
+    dua: 'Dua',
+    music: 'Music',
+    rsvp: 'RSVP',
+    contacts: 'Contacts',
+    footer: 'Footer',
+    theme: 'Theme',
+    arabic: 'Arabic (exact)',
+    translation: 'English meaning',
+    sub: 'Subtitle',
+    reference: 'Reference',
+    name: 'Name',
+    text: 'Text',
+    title: 'Title',
+    show: 'Show this section',
+    src: 'File',
+    whatsapp: 'WhatsApp number',
+    note: 'Note',
+    label: 'Label',
+    phone: 'Phone',
+    thanks: 'Thanks text',
+    family: 'Family line',
+    closing: 'Closing line',
+    date: 'Date',
+    time: 'Time',
+    venue: 'Venue',
+    address: 'Address',
+    mapLink: 'Map link (https://...)',
+    dress: 'Dress code',
+    isMain: 'Main event'
+  };
+
+  // Minimal CSS used if card.css cannot be loaded. Keeps the preview
+  // readable so the owner can still edit and download.
+  var FALLBACK_CSS =
+    '*,*::before,*::after{box-sizing:border-box;}' +
+    'body{margin:0;background:#04211c;color:#f3efe1;font-family:Georgia,serif;' +
+      'line-height:1.6;overflow-x:hidden;}' +
+    'body.gate-closed{overflow:hidden;height:100vh;}' +
+    'h1,h2,h3,p,figure,dl,dd{margin:0;}img{max-width:100%;display:block;}' +
+    'button{font:inherit;color:inherit;cursor:pointer;}a{color:#e6c27e;}' +
+    '.gate{position:fixed;inset:0;background:#030a09;display:grid;' +
+      'place-items:center;z-index:100;}' +
+    '.gate.is-done{display:none;}' +
+    '.gate__seal{width:120px;height:120px;border-radius:50%;background:#e6c27e;' +
+      'color:#04211c;border:2px solid #fff4d4;cursor:pointer;' +
+      'font-family:cursive;font-size:1.4rem;}' +
+    '.gate__title,.gate__title-en,.gate__seal-tap{color:#e6c27e;text-align:center;' +
+      'margin:8px;font-size:14px;}' +
+    '.gate__envelope{width:300px;height:220px;background:#0a2e26;' +
+      'border:1px solid #e6c27e;border-radius:8px;position:relative;' +
+      'display:grid;place-items:center;}' +
+    '#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;}' +
+    '#card{position:relative;z-index:2;}' +
+    '.scene{padding:2rem 1rem;}.scene__inner{max-width:640px;margin:0 auto;}' +
+    '.hero{min-height:80vh;display:grid;place-items:center;text-align:center;}' +
+    '.hero__name{font-family:cursive;font-size:2.5rem;color:#e6c27e;display:block;}' +
+    '.hero__bismillah{font-size:1.3rem;color:#e6c27e;text-align:center;}' +
+    '.hero__bismillah-sub{font-style:italic;text-align:center;color:#a8b8b0;}' +
+    '.hero__heart{display:inline-block;color:#e6c27e;}' +
+    '.hero__date{color:#e6c27e;text-align:center;margin:1rem 0;}' +
+    '.salam,.events,.countdown,.venue,.story,.dua,.rsvp,.footer{' +
+      'text-align:center;padding:2rem 1rem;}' +
+    '.gold-text{color:#e6c27e;}.hand{font-family:cursive;}' +
+    '.btn{display:inline-block;padding:0.6rem 1rem;border:1px solid #e6c27e;' +
+      'border-radius:999px;color:#e6c27e;background:transparent;' +
+      'text-decoration:none;font-size:0.75rem;letter-spacing:0.1em;' +
+      'text-transform:uppercase;margin:0.3rem;}' +
+    '.event-card{display:block;width:100%;background:rgba(255,255,255,0.05);' +
+      'border:1px solid #e6c27e;border-radius:12px;padding:1rem;' +
+      'margin:0.5rem 0;text-align:left;color:#f3efe1;}' +
+    '.event-card__name{font-family:cursive;font-size:1.5rem;color:#e6c27e;}' +
+    '.gallery{display:flex;gap:0.7rem;overflow-x:auto;padding:0.5rem;}' +
+    '.polaroid{flex:0 0 200px;background:#fbf8ee;padding:0.5rem;border-radius:4px;}' +
+    '.polaroid img{width:100%;height:auto;}' +
+    '.mute{position:fixed;right:14px;bottom:14px;width:46px;height:46px;' +
+      'border-radius:50%;border:1px solid #e6c27e;background:rgba(0,0,0,0.5);' +
+      'color:#e6c27e;cursor:pointer;z-index:55;}' +
+    '.clock{display:flex;justify-content:center;gap:0.5rem;flex-wrap:wrap;' +
+      'margin:1rem 0;}.clock__unit{text-align:center;}' +
+    '.clock__digits{display:flex;gap:2px;}' +
+    '.digit{display:inline-block;padding:0.3rem 0.4rem;' +
+      'background:rgba(255,255,255,0.1);border:1px solid #e6c27e;' +
+      'border-radius:4px;font-weight:bold;}' +
+    '.clock__label{font-size:10px;letter-spacing:0.2em;text-transform:uppercase;' +
+      'color:#e6c27e;}' +
+    '.venue__tab{padding:0.4rem 0.8rem;border:1px solid #e6c27e;' +
+      'background:transparent;color:#f3efe1;border-radius:999px;' +
+      'margin:0.2rem;cursor:pointer;}' +
+    '.venue__tab[aria-selected="true"]{background:#e6c27e;color:#04211c;}' +
+    '.countdown__target{font-size:12px;color:#e6c27e;text-align:center;}' +
+    '.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);' +
+      'background:#072b24;color:#e6c27e;padding:8px 16px;border-radius:999px;' +
+      'border:1px solid #e6c27e;opacity:0;transition:opacity 0.3s;' +
+      'z-index:120;font-size:12px;}.toast.is-visible{opacity:1;}' +
+    '.stagger>*{opacity:0;transform:translateY(10px);transition:all 0.6s;}' +
+    '.scene.is-in .stagger>*{opacity:1;transform:none;}';
+
+  /* ============================================================
+     3. STATE
+     ============================================================ */
+
+  var state = null;
+  var cssText = '';
+  var currentTab = 'basic';
+  var previewTimer = 0;
+  var saveTimer = 0;
+
+  /* ============================================================
+     4. TINY HELPERS
+     ============================================================ */
+
+  function humanize(key) {
+    var spaced = key.replace(/([A-Z])/g, ' $1').replace(/(\d)/g, ' $1').trim();
+    return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
+  }
+
+  function label(key) {
+    return LABELS[key] || humanize(key);
+  }
+
+  function slugify(value) {
     var out = String(value || 'card')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -130,14 +225,12 @@
     return out || 'card';
   }
 
-  // Human friendly byte size: "1.4 MB" or "480 KB".
   function formatBytes(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
 
-  // Approximate the real byte size of a base64 data URL.
   function dataUrlBytes(url) {
     if (typeof url !== 'string' || url.indexOf('data:') !== 0) return 0;
     var comma = url.indexOf(',');
@@ -145,561 +238,496 @@
     return Math.floor((url.length - comma - 1) * 0.75);
   }
 
-  /* ==========================================================
-     4. TOAST + STATUS
-     ========================================================== */
-
-  function toast(message) {
-    if (!els.toast) return;
-    els.toast.textContent = message;
-    els.toast.classList.add('is-visible');
-    window.clearTimeout(toast._timer);
-    toast._timer = window.setTimeout(function () {
-      els.toast.classList.remove('is-visible');
-    }, 2600);
+  function getByPath(root, path) {
+    var node = root;
+    for (var i = 0; i < path.length; i++) node = node[path[i]];
+    return node;
   }
 
-  function setStatus(message, isError) {
-    if (!els.editorStatus) return;
-    els.editorStatus.textContent = message;
-    els.editorStatus.classList.toggle('is-error', !!isError);
+  function setByPath(root, path, value) {
+    var node = root;
+    for (var i = 0; i < path.length - 1; i++) node = node[path[i]];
+    node[path[path.length - 1]] = value;
   }
 
-  // Compute total media weight and show it in the footer status line.
-  function updateMediaStatus() {
-    var total = 0;
-    (data.gallery || []).forEach(function (src) {
-      total += dataUrlBytes(src);
+  function clone(value) {
+    if (value === null || typeof value !== 'object') return value;
+    try { return JSON.parse(JSON.stringify(value)); } catch (e) { return value; }
+  }
+
+  function deepMerge(base, extra) {
+    if (!extra || typeof extra !== 'object') return base;
+    var out = Array.isArray(base) ? base.slice() : Object.assign({}, base);
+    Object.keys(extra).forEach(function (key) {
+      var v = extra[key];
+      var existing = out[key];
+      if (v && typeof v === 'object' && !Array.isArray(v) &&
+          existing && typeof existing === 'object' && !Array.isArray(existing)) {
+        out[key] = deepMerge(existing, v);
+      } else {
+        out[key] = v;
+      }
     });
-    if (data.music && data.music.src) {
-      total += dataUrlBytes(data.music.src);
-    }
-
-    if (total > TOTAL_MAX_BYTES) {
-      setStatus(
-        '⚠ Media is ' + formatBytes(total) + ' (over 8 MB). Try removing a photo or a song.',
-        true
-      );
-      return;
-    }
-
-    setStatus('Media: ' + formatBytes(total) + ' of 8 MB');
+    return out;
   }
 
-  /* ==========================================================
-     5. DRAFT SAVE / LOAD
-     Only text survives a refresh. Photos and music stay in memory
-     and are only embedded in the downloaded HTML.
-     ========================================================== */
+  /* ============================================================
+     5. STATE LOADING
+     ============================================================ */
 
-  function loadDraft() {
+  function loadState() {
+    var base;
+    try { base = clone(window.DEFAULT_CARD) || {}; } catch (e) { base = {}; }
+    if (!base || typeof base !== 'object') base = {};
+    if (!Array.isArray(base.events)) base.events = [];
+    if (!Array.isArray(base.gallery)) base.gallery = [];
+    if (!Array.isArray(base.contacts)) base.contacts = [];
+
     try {
       var raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return null;
-      return JSON.parse(raw);
-    } catch (error) {
-      return null;
+      if (raw) {
+        var draft = JSON.parse(raw);
+        if (draft && typeof draft === 'object') {
+          base = deepMerge(base, draft);
+        }
+      }
+    } catch (e) {
+      // Corrupt draft. Ignore and start fresh.
     }
+
+    if (VALID_THEMES.indexOf(base.theme) === -1) base.theme = 'emerald';
+
+    return base;
   }
 
-  function saveDraftNow() {
-    if (!data) return;
+  /* ============================================================
+     6. AUTOSAVE
+     ============================================================ */
+
+  function saveDraft() {
     try {
-      var draft = clone(data);
+      var draft = clone(state);
       draft.gallery = [];
-      draft.music = {
-        src: '',
-        title: (data.music && data.music.title) || ''
-      };
+      if (draft.music) draft.music.src = '';
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-    } catch (error) {
-      // Full quota or private mode. Nothing to do.
+      showSavedIndicator();
+    } catch (e) {
+      // Storage full or blocked. Ignore silently.
     }
   }
 
-  function scheduleDraftSave() {
-    if (draftTimer) window.clearTimeout(draftTimer);
-    draftTimer = window.setTimeout(function () {
-      draftTimer = 0;
-      saveDraftNow();
-    }, DRAFT_DEBOUNCE);
+  function scheduleSave() {
+    if (saveTimer) window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(function () {
+      saveTimer = 0;
+      saveDraft();
+    }, 700);
   }
 
-  function clearDraft() {
-    try { window.localStorage.removeItem(STORAGE_KEY); } catch (error) { /* ignore */ }
+  var savedNode = null;
+
+  function showSavedIndicator() {
+    if (!savedNode) {
+      savedNode = document.createElement('div');
+      savedNode.id = 'nk-saved-indicator';
+      savedNode.style.cssText =
+        'position:fixed;bottom:14px;left:50%;transform:translateX(-50%);' +
+        'background:#072b24;border:1px solid rgba(230,194,126,0.4);' +
+        'color:#e6c27e;padding:6px 14px;border-radius:999px;' +
+        'font-family:Georgia,serif;font-size:11px;letter-spacing:0.1em;' +
+        'text-transform:uppercase;z-index:70;opacity:0;' +
+        'transition:opacity 0.3s;pointer-events:none;';
+      savedNode.textContent = 'Draft saved automatically';
+      document.body.appendChild(savedNode);
+    }
+    savedNode.style.opacity = '1';
+    window.clearTimeout(showSavedIndicator._t);
+    showSavedIndicator._t = window.setTimeout(function () {
+      if (savedNode) savedNode.style.opacity = '0';
+    }, 1500);
   }
 
-  /* ==========================================================
-     6. PREVIEW
-     Setting iframe.srcdoc re-parses the whole document, so we
-     debounce it. A tiny injected script auto-opens the card in the
-     preview only, so the editor does not replay the gate on every
-     keystroke. The downloaded file does NOT get this script.
-     ========================================================== */
+  /* ============================================================
+     7. DOM FINDERS
+     ============================================================ */
 
-  function buildPreviewHtml() {
-    var html = window.buildCardHTML(data, cssText);
-    var snippet =
-      '<script>(function(){try{' +
-      'var isParent=false;' +
-      'try{isParent=!!(window.parent&&window.parent!==window);}catch(e){}' +
-      'if(!isParent)return;' +
-      'var b=document.body;' +
-      'var g=document.getElementById("gate");' +
-      'var h=document.querySelector("[data-scene-hero]");' +
-      'if(b)b.classList.remove("gate-closed");' +
-      'if(g){g.classList.add("is-done");g.hidden=true;g.setAttribute("aria-hidden","true");}' +
-      'if(h)h.classList.add("is-in");' +
-      'try{window.dispatchEvent(new Event("nikah:gateopen"));}catch(e){}' +
-      '}catch(e){}})();<\/script>';
-    return html.replace(/<\/body>/i, snippet + '</body>');
+  function findButtonByText(text) {
+    var all = document.querySelectorAll('button, a, [role="button"]');
+    var lower = String(text).toLowerCase();
+    for (var i = 0; i < all.length; i++) {
+      var t = (all[i].textContent || '').trim().toLowerCase();
+      if (t === lower) return all[i];
+    }
+    return null;
   }
 
-  function renderPreviewNow() {
-    if (!els.previewFrame || !window.buildCardHTML) return;
-    try {
-      var html = buildPreviewHtml();
-      els.previewFrame.srcdoc = html;
-      if (!firstPreviewShown) {
-        firstPreviewShown = true;
-        if (els.previewLoading) els.previewLoading.classList.add('is-hidden');
+  function findLoaderByText() {
+    var all = document.querySelectorAll('*');
+    for (var i = 0; i < all.length; i++) {
+      var node = all[i];
+      if (node.children.length > 2) continue;
+      if (/preparing your card/i.test(node.textContent || '')) {
+        // Walk up to find a matching overlay container.
+        var p = node;
+        for (var j = 0; j < 4 && p && p !== document.body; j++) {
+          if (/loading|loader/i.test(p.className || '')) return p;
+          p = p.parentElement;
+        }
+        return node;
       }
-    } catch (error) {
-      if (window.console) window.console.warn('Preview failed:', error);
-      if (els.previewLoading) {
-        els.previewLoading.textContent = 'Preview could not be built.';
-        els.previewLoading.classList.remove('is-hidden');
+    }
+    return null;
+  }
+
+  function ensureIframe() {
+    var iframe = document.querySelector('iframe');
+    if (iframe) return iframe;
+    var wrap = document.createElement('div');
+    wrap.style.cssText =
+      'position:fixed;top:0;left:0;right:0;bottom:0;background:#04211c;z-index:1;';
+    iframe = document.createElement('iframe');
+    iframe.setAttribute('sandbox', 'allow-scripts');
+    iframe.setAttribute('title', 'Live preview');
+    iframe.style.cssText = 'width:100%;height:100%;border:0;background:#04211c;';
+    wrap.appendChild(iframe);
+    document.body.appendChild(wrap);
+    return iframe;
+  }
+
+  function ensureEditorPanel() {
+    var panel = document.querySelector('aside.editor, .editor, [class*="editor-panel"]');
+    if (panel && panel !== document.body && panel !== document.documentElement) {
+      return panel;
+    }
+
+    var all = document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,div,span,button,aside');
+    for (var i = 0; i < all.length; i++) {
+      var node = all[i];
+      if (node.children.length > 2) continue;
+      if (!/^edit\s*card$/i.test((node.textContent || '').trim())) continue;
+      var p = node.parentElement;
+      for (var j = 0; j < 6 && p && p !== document.body; j++) {
+        var rect = p.getBoundingClientRect();
+        if (rect.height > 100) return p;
+        p = p.parentElement;
+      }
+    }
+
+    var newPanel = document.createElement('div');
+    newPanel.id = 'nk-editor';
+    newPanel.style.cssText =
+      'position:fixed;left:0;top:0;bottom:0;width:360px;max-width:90vw;' +
+      'background:#072b24;color:#f3efe1;overflow-y:auto;z-index:60;' +
+      'border-right:1px solid rgba(230,194,126,0.25);' +
+      'display:flex;flex-direction:column;';
+    document.body.appendChild(newPanel);
+    return newPanel;
+  }
+
+  function ensureTabs(panel) {
+    if (!panel) return null;
+    var existing = panel.querySelector(
+      '#editorTabs, .ed-tabs, .editor-tabs, [role="tablist"], .nk-tabs'
+    );
+    if (existing) return existing;
+    var tabs = document.createElement('div');
+    tabs.className = 'nk-tabs';
+    tabs.setAttribute('role', 'tablist');
+    tabs.style.cssText =
+      'display:flex;gap:4px;padding:8px 10px;overflow-x:auto;flex:0 0 auto;' +
+      'border-bottom:1px solid rgba(230,194,126,0.2);';
+    panel.appendChild(tabs);
+    return tabs;
+  }
+
+  function ensureBody(panel) {
+    if (!panel) return null;
+    var existing = panel.querySelector(
+      '#editorBody, .ed-body, .editor__body, .nk-body'
+    );
+    if (existing) return existing;
+    var body = document.createElement('div');
+    body.className = 'nk-body';
+    body.style.cssText = 'padding:10px;overflow-y:auto;flex:1 1 auto;';
+    panel.appendChild(body);
+    return body;
+  }
+
+  function hideLoader(loader) {
+    var target = loader || findLoaderByText();
+    if (target) {
+      target.classList.add('is-hidden');
+      target.style.display = 'none';
+      target.style.opacity = '0';
+      target.style.visibility = 'hidden';
+      target.setAttribute('aria-hidden', 'true');
+    }
+    var all = document.querySelectorAll('*');
+    for (var i = 0; i < all.length; i++) {
+      var node = all[i];
+      if (node.children.length > 2) continue;
+      if (/preparing your card/i.test(node.textContent || '')) {
+        node.style.display = 'none';
       }
     }
   }
 
-  function schedulePreview() {
-    if (previewTimer) window.clearTimeout(previewTimer);
-    previewTimer = window.setTimeout(function () {
-      previewTimer = 0;
-      renderPreviewNow();
-    }, PREVIEW_DEBOUNCE);
-  }
-
-  // Called by every field after a change.
-  function touch() {
-    updateMediaStatus();
-    schedulePreview();
-    scheduleDraftSave();
-  }
-
-  /* ==========================================================
-     7. PHOTO PROCESSING
-     ========================================================== */
+  /* ============================================================
+     8. PHOTO RESIZE
+     ============================================================ */
 
   function resizePhoto(file) {
     return new Promise(function (resolve, reject) {
-      var objectUrl = URL.createObjectURL(file);
-      var image = new Image();
-
-      image.onload = function () {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
         try {
-          var width = image.naturalWidth || image.width;
-          var height = image.naturalHeight || image.height;
-          var longest = Math.max(width, height);
-          if (longest > PHOTO_MAX_DIM) {
-            var ratio = PHOTO_MAX_DIM / longest;
-            width = Math.round(width * ratio);
-            height = Math.round(height * ratio);
+          var w = img.naturalWidth || img.width;
+          var h = img.naturalHeight || img.height;
+          if (Math.max(w, h) > PHOTO_MAX) {
+            var r = PHOTO_MAX / Math.max(w, h);
+            w = Math.round(w * r);
+            h = Math.round(h * r);
           }
-
           var canvas = document.createElement('canvas');
-          canvas.width = Math.max(1, width);
-          canvas.height = Math.max(1, height);
+          canvas.width = Math.max(1, w);
+          canvas.height = Math.max(1, h);
           var ctx = canvas.getContext('2d');
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = '#fff';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           var result = canvas.toDataURL('image/jpeg', PHOTO_QUALITY);
-          URL.revokeObjectURL(objectUrl);
+          URL.revokeObjectURL(url);
           resolve(result);
-        } catch (error) {
-          URL.revokeObjectURL(objectUrl);
-          reject(error);
+        } catch (e) {
+          URL.revokeObjectURL(url);
+          reject(e);
         }
       };
-
-      image.onerror = function () {
-        URL.revokeObjectURL(objectUrl);
-        reject(new Error('Could not read that image.'));
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error('Could not read image'));
       };
-
-      image.src = objectUrl;
+      img.src = url;
     });
   }
 
-  /* ==========================================================
-     8. FORM HELPERS
-     ========================================================== */
+  /* ============================================================
+     9. GENERIC FIELD RENDERERS
+     ============================================================ */
 
-  // A labelled input or textarea. Returns the input node so callers
-  // can attach their own input listener.
-  function field(parent, label, value, opts) {
-    opts = opts || {};
-    var type = typeof opts === 'string' ? opts : (opts.type || 'text');
-    var multiline = opts.multiline === true || type === 'textarea';
+  function renderFields(container, obj, basePath) {
+    if (!obj || typeof obj !== 'object') return;
+    var keys = Object.keys(obj);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      renderOneField(container, k, obj[k], basePath.concat([k]));
+    }
+  }
 
+  function renderOneField(container, key, value, path) {
+    if (key === 'theme') return renderThemeSelect(container, path, value);
+    if (key === 'events') return renderEventsEditor(container, path, value);
+    if (key === 'contacts') return renderContactsEditor(container, path, value);
+    if (key === 'gallery') return renderGalleryEditor(container, path, value);
+    if (key === 'music') return renderMusicEditor(container, path, value);
+
+    if (typeof value === 'boolean') {
+      return renderCheckbox(container, path, value, key);
+    }
+    if (typeof value === 'string') {
+      return renderTextInput(container, path, value, key);
+    }
+    if (Array.isArray(value)) {
+      // Not expected at the top level besides the special cases above.
+      return;
+    }
+    if (value && typeof value === 'object') {
+      return renderNestedGroup(container, key, value, path);
+    }
+    // Numbers or null: treat as text input.
+    return renderTextInput(
+      container,
+      path,
+      value === null || value === undefined ? '' : String(value),
+      key
+    );
+  }
+
+  function renderNestedGroup(container, key, value, path) {
+    var group = document.createElement('div');
+    group.style.cssText =
+      'border:1px solid rgba(230,194,126,0.18);border-radius:8px;' +
+      'padding:10px;margin:10px 0;background:rgba(255,255,255,0.02);';
+
+    var heading = document.createElement('p');
+    heading.style.cssText =
+      'font-size:10px;letter-spacing:0.16em;text-transform:uppercase;' +
+      'color:#e6c27e;margin:0 0 8px;';
+    heading.textContent = label(key);
+    group.appendChild(heading);
+
+    renderFields(group, value, path);
+    container.appendChild(group);
+  }
+
+  function renderTextInput(container, path, value, key) {
     var wrap = document.createElement('label');
-    wrap.className = 'ed-field';
-    wrap.appendChild(el('span', 'ed-label', label));
+    wrap.style.cssText = 'display:block;margin:8px 0;';
 
+    var lbl = document.createElement('span');
+    lbl.style.cssText =
+      'display:block;font-size:10px;letter-spacing:0.16em;' +
+      'text-transform:uppercase;color:#e6c27e;margin-bottom:4px;';
+    lbl.textContent = label(key);
+    wrap.appendChild(lbl);
+
+    var isLong = String(value).length > 80 || String(value).indexOf('\n') !== -1;
     var input;
-    if (multiline) {
+    if (isLong) {
       input = document.createElement('textarea');
-      input.className = 'ed-textarea';
+      input.style.cssText =
+        'width:100%;padding:8px;border:1px solid rgba(230,194,126,0.3);' +
+        'border-radius:6px;background:rgba(0,0,0,0.25);color:#f3efe1;' +
+        'font-family:Georgia,serif;font-size:14px;min-height:80px;' +
+        'resize:vertical;box-sizing:border-box;';
     } else {
       input = document.createElement('input');
-      input.className = 'ed-input';
-      input.type = type;
+      input.type = 'text';
+      input.style.cssText =
+        'width:100%;padding:8px;border:1px solid rgba(230,194,126,0.3);' +
+        'border-radius:6px;background:rgba(0,0,0,0.25);color:#f3efe1;' +
+        'font-family:Georgia,serif;font-size:14px;box-sizing:border-box;';
     }
-    input.value = value === null || value === undefined ? '' : String(value);
-    if (opts.placeholder) input.placeholder = opts.placeholder;
+    input.value = value;
+
+    if (key === 'arabic' || key === 'salam') {
+      input.setAttribute('dir', 'rtl');
+      input.setAttribute('lang', 'ar');
+    } else {
+      input.setAttribute('dir', 'auto');
+    }
+
+    input.addEventListener('input', function () {
+      setByPath(state, path, input.value);
+      scheduleSave();
+      schedulePreview();
+    });
 
     wrap.appendChild(input);
-    parent.appendChild(wrap);
-    return input;
+    container.appendChild(wrap);
   }
 
-  function checkRow(parent, label, checked, onChange) {
+  function renderCheckbox(container, path, value, key) {
     var wrap = document.createElement('label');
-    wrap.className = 'ed-check';
+    wrap.style.cssText =
+      'display:flex;align-items:center;gap:8px;margin:8px 0;cursor:pointer;';
+
     var input = document.createElement('input');
     input.type = 'checkbox';
-    input.checked = !!checked;
+    input.checked = !!value;
+    input.style.cssText = 'width:16px;height:16px;accent-color:#bf9546;';
+
+    var span = document.createElement('span');
+    span.textContent = label(key);
+    span.style.cssText = 'font-size:13px;color:#f3efe1;';
+
+    input.addEventListener('change', function () {
+      setByPath(state, path, !!input.checked);
+      scheduleSave();
+      schedulePreview();
+    });
+
     wrap.appendChild(input);
-    wrap.appendChild(document.createTextNode(' ' + label));
-    input.addEventListener('change', function () { onChange(input.checked); });
-    parent.appendChild(wrap);
-    return input;
+    wrap.appendChild(span);
+    container.appendChild(wrap);
   }
 
-  function edBtn(label, onClick, variant) {
+  function renderThemeSelect(container, path, value) {
+    var wrap = document.createElement('label');
+    wrap.style.cssText = 'display:block;margin:8px 0;';
+
+    var lbl = document.createElement('span');
+    lbl.style.cssText =
+      'display:block;font-size:10px;letter-spacing:0.16em;' +
+      'text-transform:uppercase;color:#e6c27e;margin-bottom:4px;';
+    lbl.textContent = 'Theme';
+    wrap.appendChild(lbl);
+
+    var select = document.createElement('select');
+    select.style.cssText =
+      'width:100%;padding:8px;border:1px solid rgba(230,194,126,0.3);' +
+      'border-radius:6px;background:rgba(0,0,0,0.25);color:#f3efe1;' +
+      'font-family:Georgia,serif;font-size:14px;box-sizing:border-box;';
+
+    VALID_THEMES.forEach(function (t) {
+      var opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t.charAt(0).toUpperCase() + t.slice(1).replace('-', ' ');
+      if (t === value) opt.selected = true;
+      select.appendChild(opt);
+    });
+
+    select.addEventListener('change', function () {
+      setByPath(state, path, select.value);
+      scheduleSave();
+      schedulePreview();
+    });
+
+    wrap.appendChild(select);
+    container.appendChild(wrap);
+  }
+
+  /* ============================================================
+     10. SPECIAL EDITORS
+     ============================================================ */
+
+  function makeSmallButton(text, disabled, handler, danger) {
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'ed-btn' + (variant ? ' ed-btn--' + variant : '');
-    btn.textContent = label;
-    btn.addEventListener('click', onClick);
+    btn.textContent = text;
+    btn.disabled = !!disabled;
+    btn.style.cssText =
+      'padding:4px 8px;border-radius:4px;font-family:Georgia,serif;' +
+      'font-size:10px;cursor:' + (disabled ? 'not-allowed' : 'pointer') + ';' +
+      'background:transparent;' +
+      'border:1px solid ' + (danger ? 'rgba(255,155,155,0.4)' : 'rgba(230,194,126,0.3)') + ';' +
+      'color:' + (danger ? '#ff9b9b' : '#f3efe1') + ';' +
+      (disabled ? 'opacity:0.4;' : '');
+    btn.addEventListener('click', handler);
     return btn;
   }
 
-  function fileBtn(label, accept, onFile) {
-    var wrap = document.createElement('label');
-    wrap.className = 'ed-btn ed-file';
-    var input = document.createElement('input');
-    input.type = 'file';
-    input.accept = accept;
-    wrap.appendChild(input);
-    wrap.appendChild(document.createTextNode(' ' + label));
-    input.addEventListener('change', function () {
-      var file = input.files && input.files[0];
-      input.value = '';
-      if (file) onFile(file);
-    });
-    return wrap;
-  }
-
-  /* ==========================================================
-     9. PANELS
-     ========================================================== */
-
-  // ---- Basic tab ----
-  function buildBasicPanel() {
-    var panel = el('div', 'ed-panel');
-    panel.setAttribute('data-panel', 'basic');
-
-    // Section: Opening
-    panel.appendChild(el('p', 'ed-label', 'Opening seal'));
-    var initials = field(
-      panel, 'Seal initials (shown on the envelope)', data.sealInitials, 'text'
-    );
-    initials.placeholder = 'M & S';
-    initials.addEventListener('input', function () {
-      data.sealInitials = initials.value;
-      touch();
-    });
-
-    panel.appendChild(el('div', 'ed-divider'));
-
-    // Section: Bismillah
-    panel.appendChild(el('p', 'ed-label', 'Bismillah'));
-    var bArabic = field(panel, 'Arabic (exact)', data.bismillah.arabic, 'textarea');
-    bArabic.setAttribute('dir', 'rtl');
-    bArabic.setAttribute('lang', 'ar');
-    bArabic.addEventListener('input', function () {
-      data.bismillah.arabic = bArabic.value;
-      touch();
-    });
-    var bSub = field(panel, 'English meaning', data.bismillah.sub, 'text');
-    bSub.addEventListener('input', function () {
-      data.bismillah.sub = bSub.value;
-      touch();
-    });
-
-    panel.appendChild(el('div', 'ed-divider'));
-
-    // Section: Salam + Ayah
-    panel.appendChild(el('p', 'ed-label', 'Salam and ayah'));
-    var salam = field(panel, 'Salam greeting', data.salam, 'text');
-    salam.setAttribute('dir', 'rtl');
-    salam.setAttribute('lang', 'ar');
-    salam.addEventListener('input', function () {
-      data.salam = salam.value;
-      touch();
-    });
-
-    checkRow(panel, 'Show the ayah', data.ayah.show, function (checked) {
-      data.ayah.show = checked;
-      touch();
-    });
-
-    var ayahArabic = field(panel, 'Ayah — Arabic (exact)', data.ayah.arabic, 'textarea');
-    ayahArabic.setAttribute('dir', 'rtl');
-    ayahArabic.setAttribute('lang', 'ar');
-    ayahArabic.addEventListener('input', function () {
-      data.ayah.arabic = ayahArabic.value;
-      touch();
-    });
-
-    var ayahTrans = field(panel, 'Ayah — English translation', data.ayah.translation, 'textarea');
-    ayahTrans.addEventListener('input', function () {
-      data.ayah.translation = ayahTrans.value;
-      touch();
-    });
-
-    var ayahRef = field(panel, 'Ayah — reference', data.ayah.reference, 'text');
-    ayahRef.addEventListener('input', function () {
-      data.ayah.reference = ayahRef.value;
-      touch();
-    });
-
-    panel.appendChild(el('div', 'ed-divider'));
-
-    // Section: Invitation
-    panel.appendChild(el('p', 'ed-label', 'Invitation text'));
-    var inviteEn = field(panel, 'English invite', data.inviteEn, 'textarea');
-    inviteEn.addEventListener('input', function () {
-      data.inviteEn = inviteEn.value;
-      touch();
-    });
-    var inviteRoman = field(panel, 'Roman (Hinglish) invite', data.inviteRoman, 'textarea');
-    inviteRoman.addEventListener('input', function () {
-      data.inviteRoman = inviteRoman.value;
-      touch();
-    });
-    var host = field(panel, 'Host line', data.host, 'text');
-    host.addEventListener('input', function () {
-      data.host = host.value;
-      touch();
-    });
-
-    panel.appendChild(el('div', 'ed-divider'));
-
-    // Section: Couple
-    panel.appendChild(el('p', 'ed-label', 'The couple'));
-    var p1Name = field(panel, 'Person 1 — name', data.person1.name, 'text');
-    p1Name.addEventListener('input', function () {
-      data.person1.name = p1Name.value;
-      touch();
-    });
-    var p1Sub = field(panel, 'Person 1 — subtitle', data.person1.sub, 'text');
-    p1Sub.addEventListener('input', function () {
-      data.person1.sub = p1Sub.value;
-      touch();
-    });
-    var p2Name = field(panel, 'Person 2 — name', data.person2.name, 'text');
-    p2Name.addEventListener('input', function () {
-      data.person2.name = p2Name.value;
-      touch();
-    });
-    var p2Sub = field(panel, 'Person 2 — subtitle', data.person2.sub, 'text');
-    p2Sub.addEventListener('input', function () {
-      data.person2.sub = p2Sub.value;
-      touch();
-    });
-
-    panel.appendChild(el('div', 'ed-divider'));
-
-    // Section: Dua
-    panel.appendChild(el('p', 'ed-label', 'Dua for the couple'));
-    checkRow(panel, 'Show the dua', data.dua.show, function (checked) {
-      data.dua.show = checked;
-      touch();
-    });
-    var duaArabic = field(panel, 'Dua — Arabic (exact)', data.dua.arabic, 'textarea');
-    duaArabic.setAttribute('dir', 'rtl');
-    duaArabic.setAttribute('lang', 'ar');
-    duaArabic.addEventListener('input', function () {
-      data.dua.arabic = duaArabic.value;
-      touch();
-    });
-    var duaTrans = field(panel, 'Dua — English translation', data.dua.translation, 'textarea');
-    duaTrans.addEventListener('input', function () {
-      data.dua.translation = duaTrans.value;
-      touch();
-    });
-
-    panel.appendChild(el('div', 'ed-divider'));
-
-    // Section: Footer
-    panel.appendChild(el('p', 'ed-label', 'Footer'));
-    var thanks = field(panel, 'Thanks text', data.footer.thanks, 'textarea');
-    thanks.addEventListener('input', function () {
-      data.footer.thanks = thanks.value;
-      touch();
-    });
-    var family = field(panel, 'Family line', data.footer.family, 'text');
-    family.addEventListener('input', function () {
-      data.footer.family = family.value;
-      touch();
-    });
-    var closing = field(panel, 'Closing line', data.footer.closing, 'text');
-    closing.addEventListener('input', function () {
-      data.footer.closing = closing.value;
-      touch();
-    });
-
-    return panel;
-  }
-
-  // ---- One event editor ----
-  function buildEventEditor(event, index) {
-    var details = document.createElement('details');
-    details.className = 'ed-event';
-    if (index === 0) details.open = true;
-
-    var summary = document.createElement('summary');
-    var nameSpan = el('span', null, event.name || 'Event');
-    summary.appendChild(nameSpan);
-    if (event.isMain) summary.appendChild(el('span', 'ed-event__flag', 'Main'));
-    details.appendChild(summary);
-
-    var body = el('div', 'ed-event__body');
-
-    var nameInput = field(body, 'Name', event.name, 'text');
-    nameInput.addEventListener('input', function () {
-      event.name = nameInput.value;
-      nameSpan.textContent = nameInput.value || 'Event';
-      touch();
-    });
-
-    var dateInput = field(body, 'Date', event.date, 'date');
-    dateInput.addEventListener('input', function () {
-      event.date = dateInput.value;
-      touch();
-    });
-
-    var timeInput = field(body, 'Time (IST)', event.time, 'time');
-    timeInput.addEventListener('input', function () {
-      event.time = timeInput.value;
-      touch();
-    });
-
-    var venueInput = field(body, 'Venue name', event.venue, 'text');
-    venueInput.addEventListener('input', function () {
-      event.venue = venueInput.value;
-      touch();
-    });
-
-    var addressInput = field(body, 'Address', event.address, 'textarea');
-    addressInput.addEventListener('input', function () {
-      event.address = addressInput.value;
-      touch();
-    });
-
-    var mapInput = field(body, 'Map link (https://…)', event.mapLink, 'url');
-    mapInput.placeholder = 'https://maps.app.goo.gl/…';
-    mapInput.addEventListener('input', function () {
-      event.mapLink = mapInput.value;
-      touch();
-    });
-
-    var dressInput = field(body, 'Dress code', event.dress, 'text');
-    dressInput.addEventListener('input', function () {
-      event.dress = dressInput.value;
-      touch();
-    });
-
-    var noteInput = field(body, 'Note', event.note, 'textarea');
-    noteInput.addEventListener('input', function () {
-      event.note = noteInput.value;
-      touch();
-    });
-
-    // Actions: up, down, set main, delete.
-    var actions = el('div', 'ed-actions');
-
-    var up = edBtn('↑ Up', function () {
-      if (index === 0) return;
-      var prev = data.events[index - 1];
-      data.events[index - 1] = data.events[index];
-      data.events[index] = prev;
-      rebuildEventsPanel();
-      touch();
-    });
-    up.disabled = index === 0;
-
-    var down = edBtn('↓ Down', function () {
-      if (index === data.events.length - 1) return;
-      var next = data.events[index + 1];
-      data.events[index + 1] = data.events[index];
-      data.events[index] = next;
-      rebuildEventsPanel();
-      touch();
-    });
-    down.disabled = index === data.events.length - 1;
-
-    var main = edBtn(event.isMain ? '★ Main event' : 'Set as main', function () {
-      data.events.forEach(function (candidate, position) {
-        candidate.isMain = (position === index);
-      });
-      rebuildEventsPanel();
-      touch();
-    });
-    main.disabled = !!event.isMain;
-
-    var remove = edBtn('Delete', function () {
-      data.events.splice(index, 1);
-      if (data.events.length && !data.events.some(function (e) {
-        return e.isMain;
-      })) {
-        data.events[0].isMain = true;
-      }
-      rebuildEventsPanel();
-      touch();
-    }, 'danger');
-
-    actions.appendChild(up);
-    actions.appendChild(down);
-    actions.appendChild(main);
-    actions.appendChild(remove);
-    body.appendChild(actions);
-
-    details.appendChild(body);
-    return details;
-  }
-
-  // ---- Events tab ----
-  function buildEventsPanel() {
-    var panel = el('div', 'ed-panel');
-    panel.setAttribute('data-panel', 'events');
-    panel.hidden = true;
-
-    if (!data.events.length) {
-      panel.appendChild(el('div', 'ed-empty', 'No events yet. Add one below.'));
+  function renderEventsEditor(container, path, events) {
+    if (!Array.isArray(events)) {
+      events = [];
+      setByPath(state, path, events);
     }
 
-    data.events.forEach(function (event, index) {
-      panel.appendChild(buildEventEditor(event, index));
-    });
+    var group = document.createElement('div');
+    group.style.cssText = 'margin:10px 0;';
 
-    var add = edBtn('+ Add Event', function () {
-      data.events.push({
+    var heading = document.createElement('p');
+    heading.style.cssText =
+      'font-size:11px;letter-spacing:0.16em;text-transform:uppercase;' +
+      'color:#e6c27e;margin:0 0 8px;';
+    heading.textContent = 'Events (' + events.length + ')';
+    group.appendChild(heading);
+
+    for (var i = 0; i < events.length; i++) {
+      group.appendChild(makeEventBlock(path, i, events.length));
+    }
+
+    var add = document.createElement('button');
+    add.type = 'button';
+    add.textContent = '+ Add Event';
+    add.style.cssText =
+      'width:100%;padding:10px;border:1px dashed rgba(230,194,126,0.4);' +
+      'border-radius:8px;background:transparent;color:#e6c27e;' +
+      'cursor:pointer;margin-top:8px;font-family:Georgia,serif;font-size:12px;';
+    add.addEventListener('click', function () {
+      var arr = getByPath(state, path);
+      arr.push({
         name: 'New Event',
         date: '',
         time: '',
@@ -708,385 +736,507 @@
         mapLink: '',
         dress: '',
         note: '',
-        isMain: !data.events.some(function (candidate) {
-          return candidate.isMain;
-        })
+        isMain: arr.length === 0
       });
-      rebuildEventsPanel();
-      touch();
-    }, 'gold');
-    add.classList.add('ed-btn--wide');
-    panel.appendChild(add);
+      rebuildCurrentTab();
+      scheduleSave();
+      schedulePreview();
+    });
+    group.appendChild(add);
 
-    return panel;
+    container.appendChild(group);
   }
 
-  function rebuildEventsPanel() {
-    var old = document.querySelector('[data-panel="events"]');
-    if (!old) return;
-    var wasHidden = old.hidden;
-    var fresh = buildEventsPanel();
-    fresh.hidden = wasHidden;
-    old.replaceWith(fresh);
-  }
+  function makeEventBlock(basePath, index, total) {
+    var event = getByPath(state, basePath)[index];
+    var details = document.createElement('details');
+    details.style.cssText =
+      'border:1px solid rgba(230,194,126,0.2);border-radius:6px;' +
+      'padding:8px;margin-bottom:8px;background:rgba(255,255,255,0.02);';
+    if (index === 0) details.open = true;
 
-  // ---- Story and Photos tab ----
-  function buildStoryPhotosPanel() {
-    var panel = el('div', 'ed-panel');
-    panel.setAttribute('data-panel', 'story-photos');
-    panel.hidden = true;
+    var summary = document.createElement('summary');
+    summary.style.cssText =
+      'cursor:pointer;font-size:12px;color:#f3efe1;' +
+      'display:flex;justify-content:space-between;';
+    var sName = document.createElement('span');
+    sName.textContent = (event.name || 'Event') + (event.isMain ? ' ★ Main' : '');
+    summary.appendChild(sName);
+    details.appendChild(summary);
 
-    panel.appendChild(el('p', 'ed-label', 'Our Story'));
-
-    checkRow(panel, 'Show "Our Story" section', data.story.show, function (checked) {
-      data.story.show = checked;
-      touch();
-    });
-
-    var storyTitle = field(panel, 'Story title', data.story.title, 'text');
-    storyTitle.addEventListener('input', function () {
-      data.story.title = storyTitle.value;
-      touch();
-    });
-
-    var storyText = field(panel, 'Story text', data.story.text, 'textarea');
-    storyText.addEventListener('input', function () {
-      data.story.text = storyText.value;
-      touch();
-    });
-
-    panel.appendChild(el('div', 'ed-divider'));
-
-    panel.appendChild(el('p', 'ed-label', 'Photos (up to 8)'));
-
-    var thumbs = el('div', 'ed-thumbs');
-    panel.appendChild(thumbs);
-
-    var upload = fileBtn('Add photos', 'image/*', function (file) {
-      if (data.gallery.length >= MAX_PHOTOS) {
-        toast('You already have 8 photos.');
-        return;
+    // Render every field on the event except isMain (shown as buttons).
+    var keys = Object.keys(event);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (k === 'isMain') continue;
+      if (typeof event[k] === 'boolean') {
+        renderCheckbox(details, basePath.concat([index, k]), event[k], k);
+      } else if (typeof event[k] === 'string') {
+        renderTextInput(details, basePath.concat([index, k]), event[k], k);
       }
-      resizePhoto(file).then(function (dataUrl) {
-        if (data.gallery.length >= MAX_PHOTOS) return;
-        data.gallery.push(dataUrl);
-        rebuildThumbs();
-        touch();
-      }).catch(function (error) {
-        toast('Could not read that image.');
-        if (window.console) window.console.warn(error);
-      });
-    });
-    panel.appendChild(upload);
-
-    function rebuildThumbs() {
-      thumbs.textContent = '';
-      if (!data.gallery.length) {
-        thumbs.appendChild(el('p', 'ed-media-name', 'No photos yet.'));
-        return;
-      }
-      data.gallery.forEach(function (src, index) {
-        var tile = el('div', 'ed-thumb');
-        var img = document.createElement('img');
-        img.src = src;
-        img.alt = 'Photo ' + (index + 1);
-        img.loading = 'lazy';
-        tile.appendChild(img);
-
-        var removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.textContent = '×';
-        removeBtn.setAttribute('aria-label', 'Remove photo ' + (index + 1));
-        removeBtn.addEventListener('click', function () {
-          data.gallery.splice(index, 1);
-          rebuildThumbs();
-          touch();
-        });
-        tile.appendChild(removeBtn);
-        thumbs.appendChild(tile);
-      });
     }
 
-    rebuildThumbs();
-    return panel;
-  }
+    var actions = document.createElement('div');
+    actions.style.cssText =
+      'display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;';
 
-  // ---- Music tab ----
-  function buildMusicPanel() {
-    var panel = el('div', 'ed-panel');
-    panel.setAttribute('data-panel', 'music');
-    panel.hidden = true;
+    actions.appendChild(makeSmallButton('↑ Up', index === 0, function () {
+      var arr = getByPath(state, basePath);
+      var tmp = arr[index - 1];
+      arr[index - 1] = arr[index];
+      arr[index] = tmp;
+      rebuildCurrentTab();
+      scheduleSave();
+      schedulePreview();
+    }));
 
-    panel.appendChild(el('p', 'ed-label', 'Background sound'));
-    panel.appendChild(el(
-      'p',
-      'ed-help',
-      'Nasheed or soft background sound (optional). Starts only after the guest taps the seal.'
+    actions.appendChild(makeSmallButton('↓ Down', index === total - 1, function () {
+      var arr = getByPath(state, basePath);
+      var tmp = arr[index + 1];
+      arr[index + 1] = arr[index];
+      arr[index] = tmp;
+      rebuildCurrentTab();
+      scheduleSave();
+      schedulePreview();
+    }));
+
+    actions.appendChild(makeSmallButton(
+      event.isMain ? '★ Main event' : 'Set as main',
+      !!event.isMain,
+      function () {
+        var arr = getByPath(state, basePath);
+        for (var j = 0; j < arr.length; j++) arr[j].isMain = (j === index);
+        rebuildCurrentTab();
+        scheduleSave();
+        schedulePreview();
+      }
     ));
 
-    var titleInput = field(panel, 'Title (optional)', data.music.title, 'text');
-    titleInput.addEventListener('input', function () {
-      data.music.title = titleInput.value;
-      touch();
+    actions.appendChild(makeSmallButton('Delete', false, function () {
+      if (!window.confirm('Delete this event?')) return;
+      var arr = getByPath(state, basePath);
+      arr.splice(index, 1);
+      var hasMain = false;
+      for (var j = 0; j < arr.length; j++) if (arr[j].isMain) hasMain = true;
+      if (arr.length && !hasMain) arr[0].isMain = true;
+      rebuildCurrentTab();
+      scheduleSave();
+      schedulePreview();
+    }, true));
+
+    details.appendChild(actions);
+    return details;
+  }
+
+  function renderContactsEditor(container, path, contacts) {
+    if (!Array.isArray(contacts)) {
+      contacts = [];
+      setByPath(state, path, contacts);
+    }
+    while (contacts.length < 3) contacts.push({ label: '', phone: '' });
+
+    var group = document.createElement('div');
+    group.style.cssText = 'margin:10px 0;';
+
+    var heading = document.createElement('p');
+    heading.style.cssText =
+      'font-size:11px;letter-spacing:0.16em;text-transform:uppercase;' +
+      'color:#e6c27e;margin:0 0 8px;';
+    heading.textContent = 'Contacts';
+    group.appendChild(heading);
+
+    for (var i = 0; i < 3; i++) {
+      (function (index) {
+        var row = document.createElement('div');
+        row.style.cssText =
+          'display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;';
+
+        var labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.placeholder = 'Label';
+        labelInput.value = (getByPath(state, path)[index] || {}).label || '';
+        labelInput.style.cssText =
+          'padding:6px;border:1px solid rgba(230,194,126,0.3);' +
+          'border-radius:4px;background:rgba(0,0,0,0.25);color:#f3efe1;' +
+          'font-family:Georgia,serif;font-size:12px;box-sizing:border-box;';
+        labelInput.addEventListener('input', function () {
+          var arr = getByPath(state, path);
+          if (!arr[index]) arr[index] = { label: '', phone: '' };
+          arr[index].label = labelInput.value;
+          scheduleSave();
+          schedulePreview();
+        });
+        row.appendChild(labelInput);
+
+        var phoneInput = document.createElement('input');
+        phoneInput.type = 'tel';
+        phoneInput.placeholder = 'Phone';
+        phoneInput.value = (getByPath(state, path)[index] || {}).phone || '';
+        phoneInput.style.cssText = labelInput.style.cssText;
+        phoneInput.addEventListener('input', function () {
+          var arr = getByPath(state, path);
+          if (!arr[index]) arr[index] = { label: '', phone: '' };
+          arr[index].phone = phoneInput.value;
+          scheduleSave();
+          schedulePreview();
+        });
+        row.appendChild(phoneInput);
+
+        group.appendChild(row);
+      })(i);
+    }
+
+    container.appendChild(group);
+  }
+
+  function renderGalleryEditor(container, path, photos) {
+    if (!Array.isArray(photos)) {
+      photos = [];
+      setByPath(state, path, photos);
+    }
+
+    var group = document.createElement('div');
+    group.style.cssText = 'margin:10px 0;';
+
+    var heading = document.createElement('p');
+    heading.style.cssText =
+      'font-size:11px;letter-spacing:0.16em;text-transform:uppercase;' +
+      'color:#e6c27e;margin:0 0 8px;';
+    heading.textContent = 'Photos (' + photos.length + '/' + MAX_PHOTOS + ')';
+    group.appendChild(heading);
+
+    var grid = document.createElement('div');
+    grid.style.cssText =
+      'display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));' +
+      'gap:6px;margin-bottom:8px;';
+
+    photos.forEach(function (src, index) {
+      var tile = document.createElement('div');
+      tile.style.cssText =
+        'position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;' +
+        'border:1px solid rgba(230,194,126,0.3);';
+
+      var img = document.createElement('img');
+      img.src = src;
+      img.alt = 'Photo ' + (index + 1);
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+      tile.appendChild(img);
+
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = '×';
+      remove.style.cssText =
+        'position:absolute;top:2px;right:2px;width:20px;height:20px;' +
+        'border-radius:50%;border:0;background:rgba(0,0,0,0.7);' +
+        'color:#fff;cursor:pointer;font-size:12px;line-height:1;';
+      remove.addEventListener('click', function () {
+        var arr = getByPath(state, path);
+        arr.splice(index, 1);
+        rebuildCurrentTab();
+        scheduleSave();
+        schedulePreview();
+      });
+      tile.appendChild(remove);
+
+      grid.appendChild(tile);
     });
 
-    var statusEl = el(
-      'p',
-      'ed-media-name',
-      data.music.src ? 'Music loaded.' : 'No music yet.'
-    );
+    group.appendChild(grid);
 
-    var upload = fileBtn('Upload mp3', 'audio/mpeg,audio/mp3,audio/*', function (file) {
-      if (file.size > MUSIC_MAX_BYTES) {
-        statusEl.textContent =
-          'File is ' + formatBytes(file.size) +
-          ' (over 3 MB). Please choose a smaller file.';
-        statusEl.className = 'ed-warn';
+    var upload = document.createElement('label');
+    upload.style.cssText =
+      'display:block;padding:10px;border:1px dashed rgba(230,194,126,0.4);' +
+      'border-radius:8px;color:#e6c27e;cursor:pointer;text-align:center;' +
+      'font-size:12px;';
+
+    var fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.multiple = true;
+    fileInput.style.cssText = 'display:none;';
+    fileInput.addEventListener('change', function () {
+      var files = Array.prototype.slice.call(fileInput.files || []);
+      fileInput.value = '';
+      if (!files.length) return;
+
+      var arr = getByPath(state, path);
+      var remaining = MAX_PHOTOS - arr.length;
+      if (remaining <= 0) {
+        window.alert('You already have ' + MAX_PHOTOS + ' photos.');
+        return;
+      }
+      files = files.slice(0, remaining);
+
+      var promises = files.map(function (f) { return resizePhoto(f); });
+      Promise.all(promises).then(function (urls) {
+        var target = getByPath(state, path);
+        for (var i = 0; i < urls.length; i++) {
+          if (target.length < MAX_PHOTOS) target.push(urls[i]);
+        }
+        rebuildCurrentTab();
+        scheduleSave();
+        schedulePreview();
+        updateMediaStatus();
+      }).catch(function (err) {
+        showError('Photo error: ' + (err && err.message ? err.message : 'unknown'));
+      });
+    });
+    upload.appendChild(fileInput);
+    upload.appendChild(document.createTextNode(
+      photos.length ? '+ Add more photos' : '+ Add photos'
+    ));
+    group.appendChild(upload);
+
+    container.appendChild(group);
+  }
+
+  function renderMusicEditor(container, path, music) {
+    if (!music || typeof music !== 'object') {
+      music = { src: '', title: '' };
+      setByPath(state, path, music);
+    }
+
+    var group = document.createElement('div');
+    group.style.cssText = 'margin:10px 0;';
+
+    var heading = document.createElement('p');
+    heading.style.cssText =
+      'font-size:11px;letter-spacing:0.16em;text-transform:uppercase;' +
+      'color:#e6c27e;margin:0 0 8px;';
+    heading.textContent = 'Background sound';
+    group.appendChild(heading);
+
+    var help = document.createElement('p');
+    help.style.cssText = 'font-size:12px;color:#a8b8b0;margin:0 0 8px;line-height:1.5;';
+    help.textContent = 'Nasheed or soft background sound (optional).';
+    group.appendChild(help);
+
+    var titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.placeholder = 'Title (optional)';
+    titleInput.value = music.title || '';
+    titleInput.style.cssText =
+      'width:100%;padding:6px;border:1px solid rgba(230,194,126,0.3);' +
+      'border-radius:4px;background:rgba(0,0,0,0.25);color:#f3efe1;' +
+      'font-family:Georgia,serif;font-size:12px;box-sizing:border-box;' +
+      'margin-bottom:6px;';
+    titleInput.addEventListener('input', function () {
+      var m = getByPath(state, path);
+      m.title = titleInput.value;
+      scheduleSave();
+      schedulePreview();
+    });
+    group.appendChild(titleInput);
+
+    var upload = document.createElement('label');
+    upload.style.cssText =
+      'display:block;padding:10px;border:1px dashed rgba(230,194,126,0.4);' +
+      'border-radius:8px;color:#e6c27e;cursor:pointer;text-align:center;' +
+      'font-size:12px;';
+    upload.textContent = music.src
+      ? 'Replace mp3 (' + formatBytes(dataUrlBytes(music.src)) + ')'
+      : 'Upload mp3 (max 3 MB)';
+
+    var fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'audio/*';
+    fileInput.style.cssText = 'display:none;';
+    fileInput.addEventListener('change', function () {
+      var file = fileInput.files && fileInput.files[0];
+      fileInput.value = '';
+      if (!file) return;
+      if (file.size > MUSIC_MAX) {
+        showError('Music file is ' + formatBytes(file.size) + ' (over 3 MB). Please choose a smaller file.');
         return;
       }
       var reader = new FileReader();
       reader.onload = function () {
-        data.music.src = String(reader.result || '');
-        statusEl.textContent = 'Music loaded (' + file.name + ').';
-        statusEl.className = 'ed-media-name';
-        rebuildActions();
-        touch();
+        var m = getByPath(state, path);
+        m.src = String(reader.result || '');
+        rebuildCurrentTab();
+        scheduleSave();
+        schedulePreview();
+        updateMediaStatus();
       };
       reader.onerror = function () {
-        statusEl.textContent = 'Could not read that file.';
-        statusEl.className = 'ed-warn';
+        showError('Could not read music file.');
       };
       reader.readAsDataURL(file);
     });
-    panel.appendChild(upload);
+    upload.appendChild(fileInput);
+    group.appendChild(upload);
 
-    var actionsRow = el('div', 'ed-actions');
-    panel.appendChild(actionsRow);
-
-    function rebuildActions() {
-      actionsRow.textContent = '';
-      if (!data.music.src) return;
-      actionsRow.appendChild(edBtn('Remove music', function () {
-        data.music.src = '';
-        statusEl.textContent = 'No music yet.';
-        statusEl.className = 'ed-media-name';
-        rebuildActions();
-        touch();
-      }, 'danger'));
-    }
-    rebuildActions();
-
-    panel.appendChild(statusEl);
-
-    panel.appendChild(el(
-      'p',
-      'ed-help',
-      'Tip: keep the file under 3 MB so the exported card loads quickly on mobile.'
-    ));
-
-    return panel;
-  }
-
-  // ---- Contacts and RSVP tab ----
-  function buildContactsPanel() {
-    var panel = el('div', 'ed-panel');
-    panel.setAttribute('data-panel', 'contacts');
-    panel.hidden = true;
-
-    panel.appendChild(el('p', 'ed-label', 'RSVP'));
-
-    checkRow(panel, 'Show RSVP section', data.rsvp.show, function (checked) {
-      data.rsvp.show = checked;
-      touch();
-    });
-
-    var whatsapp = field(
-      panel,
-      'WhatsApp number (country code + number, digits only)',
-      data.rsvp.whatsapp,
-      'tel'
-    );
-    whatsapp.placeholder = '919876543210';
-    whatsapp.addEventListener('input', function () {
-      data.rsvp.whatsapp = whatsapp.value;
-      touch();
-    });
-
-    var note = field(panel, 'RSVP note', data.rsvp.note, 'textarea');
-    note.addEventListener('input', function () {
-      data.rsvp.note = note.value;
-      touch();
-    });
-
-    panel.appendChild(el('div', 'ed-divider'));
-    panel.appendChild(el('p', 'ed-label', 'Contacts (up to 3)'));
-
-    for (var i = 0; i < 3; i += 1) {
-      (function (index) {
-        var row = el('div', 'ed-row');
-        var contact = data.contacts[index] || { label: '', phone: '' };
-
-        var labelInput = field(row, 'Label ' + (index + 1), contact.label, 'text');
-        labelInput.addEventListener('input', function () {
-          if (!data.contacts[index]) data.contacts[index] = { label: '', phone: '' };
-          data.contacts[index].label = labelInput.value;
-          touch();
-        });
-
-        var phoneInput = field(row, 'Phone ' + (index + 1), contact.phone, 'tel');
-        phoneInput.addEventListener('input', function () {
-          if (!data.contacts[index]) data.contacts[index] = { label: '', phone: '' };
-          data.contacts[index].phone = phoneInput.value;
-          touch();
-        });
-
-        panel.appendChild(row);
-      })(i);
-    }
-
-    return panel;
-  }
-
-  // ---- Theme tab ----
-  function buildThemePanel() {
-    var panel = el('div', 'ed-panel');
-    panel.setAttribute('data-panel', 'theme');
-    panel.hidden = true;
-
-    panel.appendChild(el('p', 'ed-label', 'Card theme'));
-
-    var wrap = el('div', 'ed-themes');
-
-    THEMES.forEach(function (theme) {
-      var swatch = document.createElement('button');
-      swatch.type = 'button';
-      swatch.className = 'ed-swatch';
-      swatch.setAttribute('aria-pressed', data.theme === theme.id ? 'true' : 'false');
-      swatch.appendChild(el('span', 'ed-swatch__dot ed-swatch__dot--' + theme.id));
-      swatch.appendChild(el('span', null, theme.label));
-
-      swatch.addEventListener('click', function () {
-        data.theme = theme.id;
-        wrap.querySelectorAll('.ed-swatch').forEach(function (node) {
-          node.setAttribute('aria-pressed', 'false');
-        });
-        swatch.setAttribute('aria-pressed', 'true');
-        touch();
+    if (music.src) {
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = 'Remove music';
+      remove.style.cssText =
+        'margin-top:6px;padding:6px 12px;border:1px solid rgba(255,155,155,0.4);' +
+        'border-radius:4px;background:transparent;color:#ff9b9b;' +
+        'cursor:pointer;font-size:11px;font-family:Georgia,serif;';
+      remove.addEventListener('click', function () {
+        var m = getByPath(state, path);
+        m.src = '';
+        rebuildCurrentTab();
+        scheduleSave();
+        schedulePreview();
+        updateMediaStatus();
       });
+      group.appendChild(remove);
+    }
 
-      wrap.appendChild(swatch);
-    });
-
-    panel.appendChild(wrap);
-    return panel;
+    container.appendChild(group);
   }
 
-  /* ==========================================================
-     10. TABS
-     ========================================================== */
+  /* ============================================================
+     11. TABS
+     ============================================================ */
 
-  function buildTabs() {
-    if (!els.editorTabs) return;
-    els.editorTabs.textContent = '';
+  function buildTabsUI(tabsContainer) {
+    if (!tabsContainer) return;
+    tabsContainer.textContent = '';
 
     TABS.forEach(function (tab, index) {
       var btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'ed-tab';
-      btn.setAttribute('role', 'tab');
+      btn.className = 'nk-tab';
       btn.setAttribute('data-tab', tab.id);
+      btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
       btn.textContent = tab.label;
+      btn.style.cssText =
+        'flex:0 0 auto;padding:6px 12px;border-radius:999px;' +
+        'font-family:Georgia,serif;font-size:10px;letter-spacing:0.1em;' +
+        'text-transform:uppercase;cursor:pointer;white-space:nowrap;' +
+        'border:1px solid rgba(230,194,126,0.25);' +
+        'background:transparent;color:#f3efe1;';
       btn.addEventListener('click', function () { activateTab(tab.id); });
-      els.editorTabs.appendChild(btn);
+      tabsContainer.appendChild(btn);
     });
+
+    activateTab('basic');
   }
 
-  function activateTab(id) {
-    document.querySelectorAll('.ed-tab').forEach(function (node) {
-      node.setAttribute(
-        'aria-selected',
-        node.getAttribute('data-tab') === id ? 'true' : 'false'
+  function activateTab(tabId) {
+    currentTab = tabId;
+    var tabs = document.querySelectorAll('.nk-tab');
+    for (var i = 0; i < tabs.length; i++) {
+      var isActive = tabs[i].getAttribute('data-tab') === tabId;
+      tabs[i].setAttribute('aria-selected', isActive ? 'true' : 'false');
+      tabs[i].style.background = isActive
+        ? 'linear-gradient(150deg,#bf9546,#e6c27e)'
+        : 'transparent';
+      tabs[i].style.color = isActive ? '#04211c' : '#f3efe1';
+      tabs[i].style.fontWeight = isActive ? '600' : '400';
+    }
+    renderTab(tabId);
+  }
+
+  function renderTab(tabId) {
+    var body = ensureBody(ensureEditorPanel());
+    if (!body) return;
+    body.textContent = '';
+
+    var tab = null;
+    for (var i = 0; i < TABS.length; i++) {
+      if (TABS[i].id === tabId) { tab = TABS[i]; break; }
+    }
+    if (!tab) return;
+
+    var panel = document.createElement('div');
+    panel.className = 'nk-panel';
+
+    for (var k = 0; k < tab.keys.length; k++) {
+      var key = tab.keys[k];
+      if (!(key in state)) continue;
+      renderOneField(panel, key, state[key], [key]);
+    }
+
+    body.appendChild(panel);
+  }
+
+  function rebuildCurrentTab() {
+    renderTab(currentTab);
+  }
+
+  /* ============================================================
+     12. MEDIA TOTAL
+     ============================================================ */
+
+  function updateMediaStatus() {
+    var total = 0;
+    if (Array.isArray(state.gallery)) {
+      state.gallery.forEach(function (src) { total += dataUrlBytes(src); });
+    }
+    if (state.music && state.music.src) total += dataUrlBytes(state.music.src);
+    if (total > TOTAL_MAX) {
+      showError(
+        'Total media is ' + formatBytes(total) + ' (over 8 MB). ' +
+        'Remove a photo or the music file.'
       );
-    });
-    document.querySelectorAll('.ed-panel').forEach(function (node) {
-      node.hidden = node.getAttribute('data-panel') !== id;
-    });
-  }
-
-  function rebuildAllPanels() {
-    if (!els.editorBody) return;
-    var activeTab = document.querySelector('.ed-tab[aria-selected="true"]');
-    var activeId = activeTab ? activeTab.getAttribute('data-tab') : 'basic';
-
-    els.editorBody.textContent = '';
-    els.editorBody.appendChild(buildBasicPanel());
-    els.editorBody.appendChild(buildEventsPanel());
-    els.editorBody.appendChild(buildStoryPhotosPanel());
-    els.editorBody.appendChild(buildMusicPanel());
-    els.editorBody.appendChild(buildContactsPanel());
-    els.editorBody.appendChild(buildThemePanel());
-
-    activateTab(activeId);
-  }
-
-  /* ==========================================================
-     11. DRAWER (mobile bottom sheet)
-     On desktop the panel is always visible; opening/closing is a
-     no-op for the layout, but still updates focus + aria.
-     ========================================================== */
-
-  var lastFocus = null;
-
-  function openEditor() {
-    if (!els.editorPanel) return;
-    lastFocus = document.activeElement;
-    els.editorPanel.classList.add('is-open');
-    if (els.editorScrim) {
-      els.editorScrim.classList.add('is-open');
-      els.editorScrim.setAttribute('aria-hidden', 'false');
-    }
-    document.body.classList.add('editor-open');
-    if (els.editorClose) els.editorClose.focus();
-  }
-
-  function closeEditor() {
-    if (!els.editorPanel) return;
-    els.editorPanel.classList.remove('is-open');
-    if (els.editorScrim) {
-      els.editorScrim.classList.remove('is-open');
-      els.editorScrim.setAttribute('aria-hidden', 'true');
-    }
-    document.body.classList.remove('editor-open');
-    if (lastFocus && typeof lastFocus.focus === 'function') {
-      try { lastFocus.focus(); } catch (error) { /* ignore */ }
     }
   }
 
-  /* ==========================================================
-     12. DOWNLOAD
-     Builds the same standalone HTML the preview uses, but WITHOUT
-     the auto-open snippet. The exported file has no editor UI.
-     ========================================================== */
+  /* ============================================================
+     13. PREVIEW
+     ============================================================ */
 
-  function download() {
-    if (!window.buildCardHTML || !cssText) {
-      toast('Card engine not ready yet. Please wait a moment.');
+  function renderPreview() {
+    var iframe = document.querySelector('iframe');
+    if (!iframe) return;
+    if (!window.buildCardHTML) {
+      showError('card.js not loaded or incomplete');
       return;
     }
-
-    if (els.downloadBtn) {
-      els.downloadBtn.disabled = true;
-      els.downloadBtn.textContent = 'Preparing…';
-    }
-
     try {
-      var html = window.buildCardHTML(data, cssText);
+      iframe.srcdoc = window.buildCardHTML(state, cssText);
+    } catch (e) {
+      showError('Preview error: ' + (e && e.message ? e.message : 'unknown'));
+    }
+  }
+
+  function schedulePreview() {
+    if (previewTimer) window.clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(function () {
+      previewTimer = 0;
+      renderPreview();
+    }, 300);
+  }
+
+  /* ============================================================
+     14. CSS FETCH (with timeout)
+     ============================================================ */
+
+  function fetchCssWithTimeout(ms) {
+    var url = 'card.css?v=' + Date.now();
+    var fetchPromise = fetch(url, { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    });
+    var timeoutPromise = new Promise(function (resolve, reject) {
+      window.setTimeout(function () {
+        reject(new Error('Timeout after ' + ms + 'ms'));
+      }, ms);
+    });
+    return Promise.race([fetchPromise, timeoutPromise]);
+  }
+
+  /* ============================================================
+     15. DOWNLOAD + RESET
+     ============================================================ */
+
+  function download() {
+    if (!window.buildCardHTML) {
+      showError('card.js not loaded or incomplete');
+      return;
+    }
+    try {
+      var html = window.buildCardHTML(state, cssText);
       var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       var url = URL.createObjectURL(blob);
 
-      var name1 = slug((data.person1 && data.person1.name) || 'groom');
-      var name2 = slug((data.person2 && data.person2.name) || 'bride');
+      var name1 = slugify(state.person1 && state.person1.name || 'groom');
+      var name2 = slugify(state.person2 && state.person2.name || 'bride');
 
       var a = document.createElement('a');
       a.href = url;
@@ -1097,22 +1247,10 @@
 
       window.setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
 
-      clearDraft();
-      setStatus('Downloaded. Reloading for the next card…');
-      toast('Downloaded. Reloading…');
-
-      // Give the browser time to start the download, then start fresh.
-      window.setTimeout(function () {
-        window.location.reload();
-      }, 1500);
-    } catch (error) {
-      if (window.console) window.console.error(error);
-      if (els.downloadBtn) {
-        els.downloadBtn.disabled = false;
-        els.downloadBtn.textContent = 'Download Card';
-      }
-      setStatus('Download failed. Please try again.', true);
-      toast('Download failed. See the console for details.');
+      try { window.localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+      window.setTimeout(function () { window.location.reload(); }, 1500);
+    } catch (e) {
+      showError('Download failed: ' + (e && e.message ? e.message : 'unknown'));
     }
   }
 
@@ -1120,149 +1258,88 @@
     if (!window.confirm('Reset everything to the sample card? Your changes will be lost.')) {
       return;
     }
-    data = freshData();
-    clearDraft();
-    rebuildAllPanels();
-    renderPreviewNow();
-    updateMediaStatus();
-    toast('Reset to sample');
+    try { window.localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    window.location.reload();
   }
 
-  /* ==========================================================
-     13. DATA BOOTSTRAP
-     ========================================================== */
+  /* ============================================================
+     16. BOOT
+     ============================================================ */
 
-  // Fill empty slots so the editor always has the shape it expects.
-  function padContacts(list) {
-    var out = Array.isArray(list) ? list.slice(0, 3) : [];
-    while (out.length < 3) out.push({ label: '', phone: '' });
-    return out.map(function (contact) {
-      return {
-        label: str(contact && contact.label, ''),
-        phone: str(contact && contact.phone, '')
-      };
-    });
-  }
+  function boot() {
+    try {
+      // 1. Find or create DOM pieces.
+      var panel = ensureEditorPanel();
+      var tabs = ensureTabs(panel);
+      var body = ensureBody(panel);
+      var iframe = ensureIframe();
+      var loader = findLoaderByText();
+      var downloadBtn = findButtonByText('Download Card');
+      var resetBtn = findButtonByText('Reset');
 
-  function freshData() {
-    var base = isObj(window.DEFAULT_CARD) ? clone(window.DEFAULT_CARD) : {
-      events: [], gallery: [], contacts: []
-    };
-    base.contacts = padContacts(base.contacts);
-    return base;
-  }
-
-  /* ==========================================================
-     14. CARD.CSS LOADER
-     ========================================================== */
-
-  function loadCardCss() {
-    return fetch('card.css', { cache: 'no-store' }).then(function (response) {
-      if (!response.ok) {
-        throw new Error('card.css responded with status ' + response.status);
+      // 2. Check card.js BEFORE doing anything else.
+      if (!window.DEFAULT_CARD || typeof window.buildCardHTML !== 'function') {
+        showError('card.js not loaded or incomplete');
+        hideLoader(loader);
+        return;
       }
-      return response.text();
-    });
-  }
 
-  /* ==========================================================
-     15. INIT
-     ========================================================== */
+      // 3. Load state (draft merged over defaults).
+      state = loadState();
 
-  function cacheElements() {
-    els.previewFrame = document.getElementById('previewFrame');
-    els.previewLoading = document.getElementById('previewLoading');
-    els.editorPanel = document.getElementById('editorPanel');
-    els.editorBody = document.getElementById('editorBody');
-    els.editorTabs = document.getElementById('editorTabs');
-    els.editorClose = document.getElementById('editorClose');
-    els.editorScrim = document.getElementById('editorScrim');
-    els.editFab = document.getElementById('editFab');
-    els.downloadBtn = document.getElementById('downloadBtn');
-    els.resetBtn = document.getElementById('resetBtn');
-    els.editorStatus = document.getElementById('editorStatus');
-    els.toast = document.getElementById('toast');
-  }
+      // 4. Build editor UI FIRST (before any fetch).
+      buildTabsUI(tabs);
 
-  function bindChrome() {
-    if (els.downloadBtn) {
-      els.downloadBtn.addEventListener('click', download);
-    }
-    if (els.resetBtn) {
-      els.resetBtn.addEventListener('click', resetToSample);
-    }
-    if (els.editFab) {
-      els.editFab.addEventListener('click', openEditor);
-    }
-    if (els.editorClose) {
-      els.editorClose.addEventListener('click', closeEditor);
-    }
-    if (els.editorScrim) {
-      els.editorScrim.addEventListener('click', closeEditor);
-    }
-    document.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape' && els.editorPanel &&
-          els.editorPanel.classList.contains('is-open')) {
-        closeEditor();
+      // 5. Wire chrome buttons.
+      if (downloadBtn) downloadBtn.addEventListener('click', download);
+      if (resetBtn) resetBtn.addEventListener('click', resetToSample);
+
+      var editFab = document.getElementById('editFab');
+      if (editFab && panel) {
+        editFab.addEventListener('click', function () {
+          panel.classList.add('is-open');
+          document.body.classList.add('editor-open');
+        });
       }
-    });
-  }
+      var editorClose = document.getElementById('editorClose');
+      if (editorClose && panel) {
+        editorClose.addEventListener('click', function () {
+          panel.classList.remove('is-open');
+          document.body.classList.remove('editor-open');
+        });
+      }
 
-  function init() {
-    cacheElements();
-    bindChrome();
+      // 6. Fetch card.css with timeout, then always hide the loader.
+      fetchCssWithTimeout(8000).then(function (css) {
+        cssText = css;
+        renderPreview();
+        return null;
+      }, function (err) {
+        var fullUrl = window.location.origin + '/' + 'card.css';
+        showError(
+          'card.css not found at ' + fullUrl + ' (' +
+          (err && err.message ? err.message : 'unknown') +
+          '). Using fallback styles.'
+        );
+        cssText = FALLBACK_CSS;
+        renderPreview();
+        return null;
+      }).then(function () {
+        hideLoader(loader);
+      }, function (err) {
+        hideLoader(loader);
+        showError('Preview step failed: ' + (err && err.message ? err.message : 'unknown'));
+      });
 
-    // Show a friendly message while we load the styles.
-    if (els.editorStatus) {
-      els.editorStatus.textContent = 'Loading card styles…';
+    } catch (e) {
+      showError('Boot failed: ' + (e && e.message ? e.message : String(e)));
+      try { hideLoader(); } catch (e2) {}
     }
-
-    loadCardCss().then(function (css) {
-      cssText = css;
-
-      // Merge a saved draft (text only) over the sample card.
-      var draft = loadDraft();
-      if (draft && isObj(draft)) {
-        data = deepMerge(freshData(), draft);
-      } else {
-        data = freshData();
-      }
-      data.contacts = padContacts(data.contacts);
-
-      // Sanity fixes for data that might be missing fields.
-      if (!isObj(data.bismillah)) data.bismillah = { arabic: '', sub: '' };
-      if (!isObj(data.ayah)) data.ayah = { show: true, arabic: '', translation: '', reference: '' };
-      if (!isObj(data.dua)) data.dua = { show: true, arabic: '', translation: '' };
-      if (!isObj(data.story)) data.story = { show: true, title: 'Our Story', text: '' };
-      if (!isObj(data.footer)) data.footer = { thanks: '', family: '', closing: '' };
-      if (!isObj(data.music)) data.music = { src: '', title: '' };
-      if (!isObj(data.rsvp)) data.rsvp = { show: true, whatsapp: '', note: '' };
-      if (!Array.isArray(data.events)) data.events = [];
-      if (!Array.isArray(data.gallery)) data.gallery = [];
-
-      // Build the UI now that we have both data and styles.
-      buildTabs();
-      rebuildAllPanels();
-      updateMediaStatus();
-      renderPreviewNow();
-    }).catch(function (error) {
-      if (window.console) window.console.error(error);
-      setStatus(
-        'Could not load card.css. Open this page from a web server, not a file:// URL.',
-        true
-      );
-      if (els.previewLoading) {
-        els.previewLoading.textContent =
-          'card.css could not be loaded. Please open the builder from a web server.';
-        els.previewLoading.classList.remove('is-hidden');
-      }
-      if (els.downloadBtn) els.downloadBtn.disabled = true;
-    });
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', boot);
   } else {
-    init();
+    boot();
   }
 })();
