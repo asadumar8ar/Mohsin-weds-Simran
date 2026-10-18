@@ -1,540 +1,537 @@
+// card.js — default data, HTML escaping, and the standalone card HTML builder.
+// Exposes: window.CARD_LOADED_DATA, window.DEFAULT_CARD, window.escapeHtml, window.buildCardHTML.
 window.CARD_LOADED_DATA = true;
 
-/* ==========================================================================
-   SAFE HTML ESCAPE
-   ========================================================================== */
-window.escapeHtml = function (str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+// ---------- HTML escape ----------
+window.escapeHtml = function (s) {
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 };
 
-/* ==========================================================================
-   DEFAULT CARD DATA  (all editable by the builder)
-   ========================================================================== */
+// ---------- Default card data ----------
 window.DEFAULT_CARD = {
-  theme: 'emerald',
-  sealInitials: 'M & S',
+  theme: "gulabi",
+  seal: "M & S",
 
-  bismillah: {
-    ar: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
-    sub: 'In the name of Allah, the Most Gracious, the Most Merciful'
-  },
-
-  salam: 'Assalamu Alaikum wa Rahmatullahi wa Barakatuhu',
+  bismillah: "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+  bismillahSub: "In the name of Allah, the Most Gracious, the Most Merciful",
+  salam: "Assalamu Alaikum wa Rahmatullahi wa Barakatuhu",
 
   ayah: {
     show: true,
-    ar: 'وَمِنْ آيَاتِهِ أَنْ خَلَقَ لَكُم مِّنْ أَنفُسِكُمْ أَزْوَاجًا لِّتَسْكُنُوا إِلَيْهَا وَجَعَلَ بَيْنَكُم مَّوَدَّةً وَرَحْمَةً',
-    translation: 'And among His signs is that He created for you spouses from among yourselves, that you may find tranquility in them, and He placed between you love and mercy.',
-    reference: 'Surah Ar-Rum 30:21'
+    text: "وَمِنْ آيَاتِهِ أَنْ خَلَقَ لَكُم مِّنْ أَنفُسِكُمْ أَزْوَاجًا لِّتَسْكُنُوا إِلَيْهَا وَجَعَلَ بَيْنَكُم مَّوَدَّةً وَرَحْمَةً",
+    translation: "And among His signs is that He created for you spouses from among yourselves, that you may find tranquility in them, and He placed between you love and mercy.",
+    reference: "Surah Ar-Rum 30:21"
   },
 
-  inviteEn: 'With the grace of Allah and the blessings of our elders, we cordially invite you and your family to join us in celebrating the Nikah of our beloved children.',
-  inviteRoman: 'Allah ki rehmat aur buzurgon ki duaon ke saath, hum aapko apne aziz bachon ke Nikah ki khushi mein tashreef laane ki dawat dete hain.',
-  host: 'Family Name & family',
+  inviteEn: "With the grace of Allah and the blessings of our elders, we cordially invite you and your family to join us in celebrating the Nikah of our beloved children.",
+  inviteRoman: "Allah ki rehmat aur buzurgon ki duaon ke saath, hum aapko apne aziz bachon ke Nikah ki khushi mein tashreef laane ki dawat dete hain.",
+  host: "Family Name & family",
 
   person1: {
-    name: 'Groom Name',
-    sub: 'Son of Mr. & Mrs. ____'
+    name: "Groom Name",
+    sub: "Son of Mr. & Mrs. ____"
   },
   person2: {
-    name: 'Bride Name',
-    sub: 'Daughter of Mr. & Mrs. ____'
+    name: "Bride Name",
+    sub: "Daughter of Mr. & Mrs. ____"
   },
 
   events: [
     {
-      name: 'Mehndi',
-      date: '',
-      time: '',
-      venue: '',
-      address: '',
-      mapLink: '',
-      dress: '',
-      note: '',
+      name: "Mehndi",
+      date: "2026-11-20",
+      time: "19:00",
+      venue: "Family Residence",
+      address: "123 Rose Lane, Hyderabad, Telangana",
+      mapLink: "",
+      dress: "Vibrant yellows and greens",
+      note: "An evening of henna, music and laughter.",
       isMain: false
     },
     {
-      name: 'Haldi',
-      date: '',
-      time: '',
-      venue: '',
-      address: '',
-      mapLink: '',
-      dress: '',
-      note: '',
+      name: "Haldi",
+      date: "2026-11-21",
+      time: "11:00",
+      venue: "Family Residence",
+      address: "123 Rose Lane, Hyderabad, Telangana",
+      mapLink: "",
+      dress: "Bright yellows and florals",
+      note: "A morning of turmeric blessings.",
       isMain: false
     },
     {
-      name: 'Nikah',
-      date: '',
-      time: '',
-      venue: '',
-      address: '',
-      mapLink: '',
-      dress: '',
-      note: '',
+      name: "Nikah",
+      date: "2026-11-22",
+      time: "17:30",
+      venue: "Jama Masjid",
+      address: "456 Old City Road, Hyderabad, Telangana",
+      mapLink: "",
+      dress: "Traditional formal",
+      note: "The sacred ceremony, followed by Walima dinner.",
       isMain: true
     },
     {
-      name: 'Walima',
-      date: '',
-      time: '',
-      venue: '',
-      address: '',
-      mapLink: '',
-      dress: '',
-      note: '',
+      name: "Walima",
+      date: "2026-11-23",
+      time: "19:30",
+      venue: "Gulistan Banquet Hall",
+      address: "789 Garden Street, Hyderabad, Telangana",
+      mapLink: "",
+      dress: "Formal sherwani and gowns",
+      note: "A reception to celebrate with loved ones.",
       isMain: false
     }
   ],
 
   story: {
     show: true,
-    title: 'Our Story',
-    text: ''
+    title: "Our Story",
+    text: "Two hearts brought together by the mercy of Allah, and the love of our families. Our journey began with a simple introduction, grew through conversations and shared dreams, and continues today with gratitude and hope for a blessed life together, Insha'Allah."
   },
 
   gallery: [],
 
   dua: {
     show: true,
-    ar: 'بَارَكَ اللَّهُ لَكُمَا وَبَارَكَ عَلَيْكُمَا وَجَمَعَ بَيْنَكُمَا فِي خَيْرٍ',
-    translation: 'May Allah bless you both, shower His blessings upon you, and unite you in goodness.'
+    text: "بَارَكَ اللَّهُ لَكُمَا وَبَارَكَ عَلَيْكُمَا وَجَمَعَ بَيْنَكُمَا فِي خَيْرٍ",
+    translation: "May Allah bless you both, shower His blessings upon you, and unite you in goodness."
   },
 
-  music: '',
+  music: "",
 
   rsvp: {
     show: true,
-    whatsapp: '91XXXXXXXXXX',
-    note: 'Please confirm your tashreef by ____'
+    whatsapp: "91XXXXXXXXXX",
+    note: "Please confirm your tashreef by ____"
   },
 
-  contacts: [
-    { label: '', phone: '' }
-  ],
+  contacts: [],
 
   footer: {
     thanks: "Aapki tashreef aur dua hamari khushiyon ko mukammal karegi, Insha'Allah.",
-    family: 'Aapke muntazir: ____ & family',
-    closing: 'Jazakumullahu Khairan'
-  }
+    family: "Aapke muntazir: ____ & family",
+    closing: "Jazakumullahu Khairan"
+  },
+
+  heroImage: "",
+  couplePhoto: "",
+  floralFrame: "",
+  envelopeImage: "",
+
+  videoOpening: "",
+  videoMain: "",
+  videoFinale: ""
 };
 
-/* ==========================================================================
-   BUILD CARD HTML
-   Returns a complete standalone HTML document string.
-   Every user value is HTML-escaped. The runtime is injected via toString().
-   ========================================================================== */
+// ---------- Helpers used by buildCardHTML ----------
+function text(v) { return window.escapeHtml(v); }
+function urlOrHash(u) {
+  if (!u) return "";
+  var s = String(u).trim();
+  if (s.indexOf("data:image/") === 0) return text(s);
+  if (/^https?:\/\//i.test(s)) return text(s);
+  return "";
+}
+function safeMapLink(ev) {
+  if (ev && ev.mapLink && /^https:\/\//i.test(String(ev.mapLink).trim())) {
+    return String(ev.mapLink).trim();
+  }
+  var q = ((ev && ev.venue) ? ev.venue : "") + " " + ((ev && ev.address) ? ev.address : "");
+  q = q.trim();
+  if (!q) return "";
+  return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(q);
+}
+function formatDateHuman(dstr) {
+  if (!dstr) return "";
+  var parts = String(dstr).split("-");
+  if (parts.length !== 3) return dstr;
+  var y = parseInt(parts[0], 10);
+  var m = parseInt(parts[1], 10);
+  var d = parseInt(parts[2], 10);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return dstr;
+  var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  var days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var dt = new Date(Date.UTC(y, m - 1, d));
+  var dayName = days[dt.getUTCDay()];
+  var monName = months[dt.getUTCMonth()];
+  return dayName + ", " + d + " " + monName + " " + y;
+}
+function formatTimeHuman(t) {
+  if (!t) return "";
+  var parts = String(t).split(":");
+  if (parts.length < 2) return t;
+  var hh = parseInt(parts[0], 10);
+  var mm = parseInt(parts[1], 10);
+  if (isNaN(hh) || isNaN(mm)) return t;
+  var ampm = hh >= 12 ? "PM" : "AM";
+  var h12 = hh % 12;
+  if (h12 === 0) h12 = 12;
+  var mmStr = mm < 10 ? "0" + mm : "" + mm;
+  return h12 + ":" + mmStr + " " + ampm;
+}
+function findMain(events) {
+  if (!events || !events.length) return null;
+  for (var i = 0; i < events.length; i++) {
+    if (events[i].isMain) return events[i];
+  }
+  return events[0];
+}
+
+// ---------- Build the standalone card HTML ----------
 window.buildCardHTML = function (data) {
   var D = data || window.DEFAULT_CARD;
-  var e = window.escapeHtml;
+  var events = (D.events && D.events.length) ? D.events : [];
+  var mainEv = findMain(events);
+  var theme = D.theme || "gulabi";
 
-  var MONTHS = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
+  var safeJSON = JSON.stringify(D).replace(/</g, "\\u003c");
 
-  var formatDate = function (iso) {
-    if (!iso) return '';
-    var p = String(iso).split('-');
-    if (p.length !== 3) return String(iso);
-    var y = parseInt(p[0], 10);
-    var m = parseInt(p[1], 10) - 1;
-    var d = parseInt(p[2], 10);
-    if (isNaN(y) || isNaN(m) || isNaN(d) || m < 0 || m > 11) return String(iso);
-    return d + ' ' + MONTHS[m] + ' ' + y;
-  };
+  // ---------- CSS ----------
+  var css = (window.CARD_CSS || "").toString();
 
-  var formatTime = function (hhmm) {
-    if (!hhmm) return '';
-    var p = String(hhmm).split(':');
-    if (p.length < 2) return String(hhmm);
-    var h = parseInt(p[0], 10);
-    var m = parseInt(p[1], 10);
-    if (isNaN(h) || isNaN(m)) return String(hhmm);
-    var ap = h >= 12 ? 'PM' : 'AM';
-    var hh = h % 12;
-    if (hh === 0) hh = 12;
-    return hh + ':' + (m < 10 ? '0' + m : m) + ' ' + ap;
-  };
-
-  var mapHref = function (link, addr) {
-    var s = String(link || '').trim();
-    if (/^https:\/\//i.test(s)) return s;
-    return 'https://www.google.com/maps/search/?api=1&query=' +
-      encodeURIComponent(String(addr || ''));
-  };
-
-  var letterSpans = function (text, startIdx) {
-    var s = String(text || '');
-    var idx = startIdx || 0;
-    var html = '';
-    var i;
-    for (i = 0; i < s.length; i++) {
-      var ch = s.charAt(i);
-      var disp = ch === ' ' ? '&nbsp;' : e(ch);
-      html += '<span class="hero-name-letter" style="--i:' + (idx++) + '">' + disp + '</span>';
-    }
-    return { html: html, next: idx };
-  };
-
-  var events = Array.isArray(D.events) ? D.events : [];
-  var mainEvent = null;
-  var mi;
-  for (mi = 0; mi < events.length; mi++) {
-    if (events[mi] && events[mi].isMain) { mainEvent = events[mi]; break; }
-  }
-  if (!mainEvent && events.length) mainEvent = events[0];
-
-  /* ---------------- OPENING SCENE ---------------- */
-  var sealInitials = String(D.sealInitials || '');
-
-  var openingHtml =
-    '<div class="opening" role="dialog" aria-label="Opening invitation">' +
-      '<div class="opening-stars" aria-hidden="true"></div>' +
-      '<div class="opening-moon" aria-hidden="true"></div>' +
-      '<div class="fanoos" aria-hidden="true">' +
-        '<div class="fanoos-chain"></div>' +
-        '<div class="fanoos-body"><div class="fanoos-glow"></div></div>' +
+  // ---------- Arrival markup ----------
+  var arrivalHTML =
+    '<div id="arrival" data-theme-inner="1">' +
+      '<div class="arrival-top">' +
+        '<p>An invitation has arrived</p>' +
+        '<div class="ping" aria-hidden="true"></div>' +
       '</div>' +
-      '<div class="envelope-wrap">' +
-        '<div class="envelope">' +
-          '<div class="envelope-back"></div>' +
-          '<div class="envelope-front"></div>' +
-          '<div class="envelope-flap"></div>' +
-          '<button class="seal" type="button" aria-label="Open the invitation">' +
-            '<span class="seal-initials">' + e(sealInitials) + '</span>' +
-            '<span class="seal-crescent">&#9789;</span>' +
-          '</button>' +
+      '<div id="envelope">' +
+        '<div class="env-body">' +
+          '<div class="env-face">' +
+            '<div class="env-to"><small>To</small><span dir="auto">Dear guests and family</span></div>' +
+            '<div class="env-from" dir="auto">From: ' + text(D.host || "") + '</div>' +
+          '</div>' +
+          '<div class="flap" aria-hidden="true"></div>' +
+          '<div id="seal" role="button" tabindex="0" aria-label="Open the invitation">' +
+            '<span class="seal-initials">' + text(D.seal || "M & S") + '</span>' +
+          '</div>' +
         '</div>' +
-        '<p class="seal-tap">Tap the seal to open</p>' +
+      '</div>' +
+      '<div id="hintTap">Tap the seal to open</div>' +
+    '</div>';
+
+  // ---------- Corridor markup ----------
+  var arch0 =
+    '<div class="arch" data-i="0">' +
+      '<div class="floral tl" aria-hidden="true"></div>' +
+      '<div class="floral tr" aria-hidden="true"></div>' +
+      '<div class="floral bl" aria-hidden="true"></div>' +
+      '<div class="floral br" aria-hidden="true"></div>' +
+      '<div class="arch-content">' +
+        '<div class="bismillah" dir="rtl">' + text(D.bismillah || "") + '</div>' +
+        '<div class="bismillah-sub" dir="auto">' + text(D.bismillahSub || "") + '</div>' +
+        '<div class="salam" dir="auto">' + text(D.salam || "") + '</div>' +
       '</div>' +
     '</div>';
 
-  /* ---------------- HERO ---------------- */
-  var p1 = D.person1 || {};
-  var p2 = D.person2 || {};
-  var ls1 = letterSpans(p1.name || '', 0);
-  var ls2 = letterSpans(p2.name || '', ls1.next);
+  var arch1 =
+    '<div class="arch" data-i="1">' +
+      '<div class="floral tl" aria-hidden="true"></div>' +
+      '<div class="floral tr" aria-hidden="true"></div>' +
+      '<div class="floral bl" aria-hidden="true"></div>' +
+      '<div class="floral br" aria-hidden="true"></div>' +
+      '<div class="arch-content">' +
+        '<div class="names">' +
+          '<span class="ink-reveal"><span dir="auto">' + text(D.person1 && D.person1.name) + '</span></span>' +
+          '<span class="amp">and</span>' +
+          '<span class="ink-reveal"><span dir="auto">' + text(D.person2 && D.person2.name) + '</span></span>' +
+        '</div>' +
+        '<div class="sub-names" dir="auto">' + text(D.person1 && D.person1.sub) + '</div>' +
+        '<div class="sub-names" dir="auto">' + text(D.person2 && D.person2.sub) + '</div>' +
+      '</div>' +
+    '</div>';
 
-  var heroDate = '';
-  if (mainEvent) {
-    var hd = formatDate(mainEvent.date);
-    var ht = formatTime(mainEvent.time);
-    if (hd && ht) heroDate = hd + ' \u00B7 ' + ht;
-    else if (hd) heroDate = hd;
-    else if (ht) heroDate = ht;
+  var coupleImg = urlOrHash(D.couplePhoto);
+  var arch2 =
+    '<div class="arch" data-i="2">' +
+      '<div class="floral tl" aria-hidden="true"></div>' +
+      '<div class="floral tr" aria-hidden="true"></div>' +
+      '<div class="floral bl" aria-hidden="true"></div>' +
+      '<div class="floral br" aria-hidden="true"></div>' +
+      '<div class="arch-content">' +
+        (coupleImg ? '<div class="couple-frame"><img src="' + coupleImg + '" alt="Couple photo"></div>' : '') +
+        '<div class="date-block">' +
+          '<strong>' + text(mainEv ? formatDateHuman(mainEv.date) : "") + '</strong>' +
+          text(mainEv ? formatTimeHuman(mainEv.time) : "") +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  var arch3 =
+    '<div class="arch" data-i="3">' +
+      '<div class="floral tl" aria-hidden="true"></div>' +
+      '<div class="floral tr" aria-hidden="true"></div>' +
+      '<div class="floral bl" aria-hidden="true"></div>' +
+      '<div class="floral br" aria-hidden="true"></div>' +
+      '<div class="arch-content">' +
+        '<div class="inv-text" dir="auto">' + text(D.inviteEn || "") + '</div>' +
+        '<div class="inv-text roman" dir="auto">' + text(D.inviteRoman || "") + '</div>' +
+        '<div class="host-line" dir="auto">' + text(D.host || "") + '</div>' +
+      '</div>' +
+    '</div>';
+
+  var arch4 = "";
+  if (D.ayah && D.ayah.show) {
+    arch4 =
+      '<div class="arch" data-i="4">' +
+        '<div class="floral tl" aria-hidden="true"></div>' +
+        '<div class="floral tr" aria-hidden="true"></div>' +
+        '<div class="floral bl" aria-hidden="true"></div>' +
+        '<div class="floral br" aria-hidden="true"></div>' +
+        '<div class="arch-content">' +
+          '<div class="ayah-ar" dir="rtl">' + text(D.ayah.text || "") + '</div>' +
+          '<div class="ayah-tr" dir="auto">' + text(D.ayah.translation || "") + '</div>' +
+          '<div class="ayah-ref">' + text(D.ayah.reference || "") + '</div>' +
+        '</div>' +
+      '</div>';
   }
 
-  var bismAr = e((D.bismillah && D.bismillah.ar) || '');
-  var bismSub = e((D.bismillah && D.bismillah.sub) || '');
+  // Floral frame override.
+  var floralImg = urlOrHash(D.floralFrame);
+  if (floralImg) {
+    var imgCSS = '<div class="floral img tl" style="background-image:url(&quot;' + floralImg + '&quot;)" aria-hidden="true"></div>' +
+                 '<div class="floral img tr" style="background-image:url(&quot;' + floralImg + '&quot;)" aria-hidden="true"></div>' +
+                 '<div class="floral img bl" style="background-image:url(&quot;' + floralImg + '&quot;)" aria-hidden="true"></div>' +
+                 '<div class="floral img br" style="background-image:url(&quot;' + floralImg + '&quot;)" aria-hidden="true"></div>';
+    arch0 = arch0.replace(/<div class="floral [^"]*"[^>]*><\/div>/g, "");
+    arch0 = arch0.replace('<div class="arch-content">', imgCSS + '<div class="arch-content">');
+  }
 
-  var heroHtml =
-    '<section class="scene hero" aria-label="Invitation hero">' +
-      '<div class="fanoos-hero" aria-hidden="true">' +
-        '<div class="fanoos-chain"></div>' +
-        '<div class="fanoos-body"><div class="fanoos-glow"></div></div>' +
-      '</div>' +
-      '<div class="mosque-skyline" aria-hidden="true"></div>' +
-      '<div class="hero-khatam" aria-hidden="true"></div>' +
-      '<div class="hero-inner">' +
-        '<p class="hero-bismillah-ar" dir="rtl">' + bismAr + '</p>' +
-        '<p class="hero-bismillah-en">' + bismSub + '</p>' +
-        '<h1 class="hero-names">' +
-          '<span>' + ls1.html + '</span>' +
-          '<span class="hero-amp">&amp;</span>' +
-          '<span>' + ls2.html + '</span>' +
-        '</h1>' +
-        (heroDate ? '<p class="hero-date">' + e(heroDate) + '</p>' : '') +
+  var corridorHTML =
+    '<section id="stage" aria-label="Invitation corridor">' +
+      '<div id="stageInner">' +
+        arch0 + arch1 + arch2 + arch3 + arch4 +
       '</div>' +
     '</section>';
 
-  /* ---------------- SALAM / AYAH / INVITATION ---------------- */
-  var ayah = D.ayah || {};
-  var ayahBlock = '';
-  if (ayah.show) {
-    ayahBlock =
-      '<div class="ayah-box">' +
-        (ayah.ar ? '<p class="ayah-arabic" dir="rtl">' + e(ayah.ar) + '</p>' : '') +
-        (ayah.translation ? '<p class="ayah-translation">' + e(ayah.translation) + '</p>' : '') +
-        (ayah.reference ? '<p class="ayah-ref">' + e(ayah.reference) + '</p>' : '') +
-      '</div>';
-  }
-
-  var salamHtml =
-    '<section class="scene salam-section reveal-arch" aria-label="Salam and invitation">' +
-      '<div class="scene-inner stagger">' +
-        (D.salam ? '<p class="salam-text">' + e(D.salam) + '</p>' : '') +
-        ayahBlock +
-        '<p class="guest-line" hidden></p>' +
-        (D.inviteEn ? '<p class="invite-en">' + e(D.inviteEn) + '</p>' : '') +
-        (D.inviteRoman ? '<p class="invite-roman">' + e(D.inviteRoman) + '</p>' : '') +
-        (D.host ? '<p class="host-line">' + e(D.host) + '</p>' : '') +
-        '<div class="divider"></div>' +
+  // ---------- Scratch markup ----------
+  var mainDateTxt = mainEv ? formatDateHuman(mainEv.date) : "";
+  var mainTimeTxt = mainEv ? formatTimeHuman(mainEv.time) : "";
+  var scratchHTML =
+    '<section id="scratchWrap" aria-label="Scratch to reveal">' +
+      '<div class="scratch-heading">A little surprise</div>' +
+      '<div class="scratch-sub">Scratch to reveal</div>' +
+      '<div style="position:relative;width:min(340px,88vw);height:min(420px,110vw);margin:0 auto">' +
+        '<div id="scratchContent">' +
+          '<div class="you">You are invited</div>' +
+          '<div class="invited">to the Nikah</div>' +
+          '<div class="dt">' +
+            '<strong dir="auto">' + text(mainDateTxt) + '</strong>' +
+            '<span dir="auto">' + text(mainTimeTxt) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<canvas id="scratchCanvas" aria-label="Scratch to reveal the invitation" role="button"></canvas>' +
       '</div>' +
+      '<button type="button" id="revealBtn">Reveal</button>' +
     '</section>';
 
-  /* ---------------- EVENTS TIMELINE ---------------- */
-  var eventsListHtml = '';
-  events.forEach(function (ev, idx) {
-    if (!ev) return;
-    if (!ev.name && !ev.date && !ev.time && !ev.venue) return;
-
-    eventsListHtml +=
-      '<div class="event-row">' +
-        '<div class="event-card" data-event-index="' + idx + '" role="button" tabindex="0" ' +
-          'aria-label="' + e((ev.name || 'Event') + ' card. Tap to flip.') + '">' +
-          '<div class="event-card-inner">' +
-            '<div class="event-face event-face-front">' +
-              '<div class="event-front-inner">' +
-                '<h3 class="event-name">' + e(ev.name || '') + '</h3>' +
-                (ev.date ? '<p class="event-date">' + e(formatDate(ev.date)) + '</p>' : '') +
-                (ev.time ? '<p class="event-time">' + e(formatTime(ev.time)) + ' IST</p>' : '') +
-                (ev.isMain ? '<span class="event-badge-main">Main Event</span>' : '') +
-              '</div>' +
-              '<span class="event-flip-hint">Tap</span>' +
+  // ---------- Programme markup ----------
+  var progCards = "";
+  for (var i = 0; i < events.length; i++) {
+    var ev = events[i];
+    var mapsUrl = safeMapLink(ev);
+    progCards +=
+      '<div class="ev-card' + (ev.isMain ? " main" : "") + '">' +
+        '<div class="ev-inner">' +
+          '<div class="front" role="button" tabindex="0" aria-label="Flip ' + text(ev.name) + ' card">' +
+            '<div class="ev-name" dir="auto">' + text(ev.name) + '</div>' +
+            '<div class="ev-meta">' +
+              '<strong>' + text(formatDateHuman(ev.date)) + '</strong>' +
+              (ev.time ? ' &middot; ' + text(formatTimeHuman(ev.time)) : '') +
             '</div>' +
-            '<div class="event-face event-face-back">' +
-              (ev.venue ? '<p class="event-back-line"><strong>Venue</strong>' + e(ev.venue) + '</p>' : '') +
-              (ev.address ? '<p class="event-back-line"><strong>Address</strong>' + e(ev.address) + '</p>' : '') +
-              (ev.dress ? '<p class="event-back-line"><strong>Dress Code</strong>' + e(ev.dress) + '</p>' : '') +
-              (ev.note ? '<p class="event-back-line"><strong>Note</strong>' + e(ev.note) + '</p>' : '') +
-              (!ev.venue && !ev.address && !ev.dress && !ev.note
-                ? '<p class="event-back-line">Details coming soon.</p>'
-                : '') +
-            '</div>' +
+            '<span class="ev-tap">Tap for details</span>' +
+          '</div>' +
+          '<div class="back">' +
+            '<div class="ev-venue" dir="auto">' + text(ev.venue) + '</div>' +
+            (ev.address ? '<div class="ev-detail"><strong>Address</strong>' + text(ev.address) + '</div>' : '') +
+            (ev.dress ? '<div class="ev-detail"><strong>Dress code</strong>' + text(ev.dress) + '</div>' : '') +
+            (ev.note ? '<div class="ev-detail"><strong>Note</strong>' + text(ev.note) + '</div>' : '') +
+            (mapsUrl ? '<div class="ev-detail" style="margin-top:8px"><a class="venue-btn gold" href="' + text(mapsUrl) + '" target="_blank" rel="noopener">Open in Maps</a></div>' : '') +
           '</div>' +
         '</div>' +
       '</div>';
-  });
-
-  var eventsHtml = eventsListHtml
-    ? '<section class="scene reveal-curtain" aria-label="Events timeline">' +
-        '<div class="scene-inner">' +
-          '<p class="section-title">Events</p>' +
-          '<div class="events-timeline">' + eventsListHtml + '</div>' +
-        '</div>' +
-      '</section>'
-    : '';
-
-  /* ---------------- COUNTDOWN ---------------- */
-  var countdownHtml = '';
-  if (mainEvent && mainEvent.date) {
-    var cdUnit = function (label) {
-      return '<div class="countdown-unit">' +
-        '<span class="countdown-flip">' +
-          '<span class="countdown-digit">0</span>' +
-          '<span class="countdown-digit">0</span>' +
-        '</span>' +
-        '<span class="countdown-caption">' + label + '</span>' +
-      '</div>';
-    };
-
-    countdownHtml =
-      '<section class="scene countdown-section reveal-moon" aria-label="Countdown to the main event">' +
-        '<div class="scene-inner">' +
-          '<p class="countdown-label">Counting down to</p>' +
-          '<h2 class="countdown-event-name">' + e(mainEvent.name || 'The Celebration') + '</h2>' +
-          '<div class="countdown-grid">' +
-            cdUnit('Days') +
-            cdUnit('Hours') +
-            cdUnit('Minutes') +
-            cdUnit('Seconds') +
-          '</div>' +
-          '<p class="countdown-done" hidden>The celebrations have begun</p>' +
-          '<p class="countdown-target-date"></p>' +
-        '</div>' +
-      '</section>';
   }
 
-  /* ---------------- VENUE ---------------- */
-  var venueEvents = events.filter(function (ev) {
-    return ev && ev.address && String(ev.address).trim();
-  });
+  var programmeHTML =
+    '<section id="programme" aria-label="Programme">' +
+      '<h2 class="prog-title">The Programme</h2>' +
+      '<p class="prog-sub">A sequence of celebrations</p>' +
+      '<div class="timeline">' + progCards + '</div>' +
+    '</section>';
 
-  var venueHtml = '';
+  // ---------- Countdown ----------
+  var mainName = mainEv ? mainEv.name : "";
+  var countdownHTML =
+    '<section id="countdown" aria-label="Countdown">' +
+      '<h2 class="cd-title">Counting the days</h2>' +
+      '<p class="cd-sub">' + text(mainName ? mainName + " · " + formatDateHuman(mainEv.date) : "") + '</p>' +
+      '<div class="cd-grid" aria-live="polite">' +
+        '<div class="cd-cell"><span class="cd-num" data-unit="days">00</span><span class="cd-label">Days</span></div>' +
+        '<div class="cd-cell"><span class="cd-num" data-unit="hours">00</span><span class="cd-label">Hours</span></div>' +
+        '<div class="cd-cell"><span class="cd-num" data-unit="minutes">00</span><span class="cd-label">Minutes</span></div>' +
+        '<div class="cd-cell"><span class="cd-num" data-unit="seconds">00</span><span class="cd-label">Seconds</span></div>' +
+      '</div>' +
+      '<div class="cd-begun" style="display:none">The celebrations have begun<small>Alhamdulillah</small></div>' +
+    '</section>';
+
+  // ---------- Venue ----------
+  var venueEvents = [];
+  for (var v = 0; v < events.length; v++) {
+    if (events[v].address || events[v].venue) venueEvents.push(events[v]);
+  }
+  var venueTabs = "";
+  var venueCards = "";
+  for (var vi = 0; vi < venueEvents.length; vi++) {
+    var vev = venueEvents[vi];
+    var vMaps = safeMapLink(vev);
+    venueTabs += '<button type="button" class="venue-tab' + (vi === 0 ? " active" : "") + '">' + text(vev.name) + '</button>';
+    venueCards +=
+      '<div class="venue-card" style="display:' + (vi === 0 ? "" : "none") + '">' +
+        '<div class="v-name" dir="auto">' + text(vev.name) + '</div>' +
+        '<div class="v-addr" dir="auto">' + text(vev.address || vev.venue) + '</div>' +
+        (vev.dress ? '<div class="v-dress">' + text(vev.dress) + '</div>' : '') +
+        '<div class="venue-actions">' +
+          (vMaps ? '<a class="venue-btn" href="' + text(vMaps) + '" target="_blank" rel="noopener">Open in Maps</a>' : '') +
+          (vMaps ? '<a class="venue-btn gold" href="' + text(vMaps) + '" target="_blank" rel="noopener">Get Directions</a>' : '') +
+        '</div>' +
+      '</div>';
+  }
+  var venueHTML = "";
   if (venueEvents.length) {
-    var tabsHtml = '';
-    var panelsHtml = '';
-    venueEvents.forEach(function (ev, i) {
-      tabsHtml +=
-        '<button class="venue-tab' + (i === 0 ? ' active' : '') + '" type="button" role="tab" ' +
-          'aria-selected="' + (i === 0 ? 'true' : 'false') + '" data-venue-index="' + i + '">' +
-          e(ev.name || 'Event') +
-        '</button>';
-
-      var href = mapHref(ev.mapLink, ev.address);
-
-      panelsHtml +=
-        '<div class="venue-panel" data-venue-panel="' + i + '"' + (i === 0 ? '' : ' hidden') + '>' +
-          (ev.name ? '<h3 class="venue-name">' + e(ev.name) + '</h3>' : '') +
-          '<p class="venue-address">' + e(ev.address) + '</p>' +
-          '<div class="venue-links">' +
-            '<a class="btn-card" href="' + e(href) + '" target="_blank" rel="noopener noreferrer">Open in Maps</a>' +
-            '<a class="btn-card" href="' + e(href) + '" target="_blank" rel="noopener noreferrer">Get Directions</a>' +
-          '</div>' +
-        '</div>';
-    });
-
-    venueHtml =
-      '<section class="scene reveal-star" aria-label="Venue locations">' +
-        '<div class="scene-inner">' +
-          '<p class="section-title">Venue</p>' +
-          '<div class="venue-tabs" role="tablist" aria-label="Choose a venue">' + tabsHtml + '</div>' +
-          '<div class="venue-panels">' + panelsHtml + '</div>' +
-        '</div>' +
+    venueHTML =
+      '<section id="venue" aria-label="Venue">' +
+        '<h2 class="venue-title">The Venue</h2>' +
+        '<p class="venue-sub">Where we celebrate</p>' +
+        '<div class="venue-tabs">' + venueTabs + '</div>' +
+        venueCards +
       '</section>';
   }
 
-  /* ---------------- STORY + GALLERY ---------------- */
-  var story = D.story || {};
-  var photos = Array.isArray(D.gallery) ? D.gallery : [];
-  var storyHtml = '';
+  // ---------- Story ----------
+  var storyHTML = "";
+  if (D.story && D.story.show) {
+    storyHTML =
+      '<section id="story" aria-label="Our story">' +
+        '<h2 class="story-title" dir="auto">' + text(D.story.title || "Our Story") + '</h2>' +
+        '<p class="story-sub">A beginning</p>' +
+        '<p class="story-text" dir="auto">' + text(D.story.text || "") + '</p>' +
+      '</section>';
+  }
 
-  if (story.show || photos.length) {
-    var galleryHtml = '';
-    if (photos.length) {
-      var stackHtml = '';
-      photos.slice(0, 8).forEach(function (src) {
-        if (!src) return;
-        stackHtml +=
-          '<div class="gallery-card" role="button" tabindex="0" aria-label="Wedding photo">' +
-            '<img src="' + e(src) + '" alt="Nikah celebration photo" loading="lazy">' +
-          '</div>';
-      });
-      galleryHtml =
-        '<div class="gallery-stack">' + stackHtml + '</div>' +
-        '<p class="gallery-hint">Tap a photo to bring it forward</p>';
+  // ---------- Gallery ----------
+  var galleryHTML = "";
+  if (D.gallery && D.gallery.length) {
+    var pols = "";
+    var dots = "";
+    for (var gi = 0; gi < D.gallery.length; gi++) {
+      var src = urlOrHash(D.gallery[gi]);
+      if (!src) continue;
+      var cls = gi < 5 ? "p" + gi : "";
+      pols += '<div class="polaroid ' + cls + '"><img src="' + src + '" alt="Gallery photo ' + (gi + 1) + '"><div class="pol-caption">' + text(D.person1 && D.person1.name) + ' &amp; ' + text(D.person2 && D.person2.name) + '</div></div>';
+      dots += '<span class="gallery-dot' + (gi === 0 ? " on" : "") + '"></span>';
     }
+    if (pols) {
+      galleryHTML =
+        '<section id="gallery" aria-label="Gallery">' +
+          '<h2 class="gallery-title">Moments</h2>' +
+          '<p class="gallery-sub">Swipe through memories</p>' +
+          '<div class="gallery-stack">' + pols + '</div>' +
+          '<div class="gallery-dots">' + dots + '</div>' +
+          '<p class="gallery-hint">Tap or swipe</p>' +
+        '</section>';
+    }
+  }
 
-    storyHtml =
-      '<section class="scene reveal-arch" aria-label="Our story and photos">' +
-        '<div class="scene-inner stagger">' +
-          (story.show && story.title ? '<p class="section-title">' + e(story.title) + '</p>' : '') +
-          (story.show && story.text ? '<p class="story-text">' + e(story.text) + '</p>' : '') +
-          galleryHtml +
-        '</div>' +
+  // ---------- Dua ----------
+  var duaHTML = "";
+  if (D.dua && D.dua.show) {
+    duaHTML =
+      '<section id="dua" aria-label="Dua">' +
+        '<div class="dua-ornament" aria-hidden="true"></div>' +
+        '<div class="dua-ar" dir="rtl">' + text(D.dua.text || "") + '</div>' +
+        '<div class="dua-tr" dir="auto">' + text(D.dua.translation || "") + '</div>' +
       '</section>';
   }
 
-  /* ---------------- DUA ---------------- */
-  var dua = D.dua || {};
-  var duaHtml = '';
-  if (dua.show) {
-    duaHtml =
-      '<section class="scene reveal-moon" aria-label="Dua for the couple">' +
-        '<div class="scene-inner stagger">' +
-          '<p class="section-title">Dua</p>' +
-          (dua.ar ? '<p class="dua-arabic" dir="rtl">' + e(dua.ar) + '</p>' : '') +
-          (dua.translation ? '<p class="dua-translation">' + e(dua.translation) + '</p>' : '') +
+  // ---------- RSVP ----------
+  var rsvpHTML = "";
+  if (D.rsvp && D.rsvp.show) {
+    var calBtns = "";
+    for (var ci = 0; ci < events.length; ci++) {
+      calBtns +=
+        '<button type="button" class="cal-btn" data-ev="' + text(events[ci].name) + '">' +
+          '<span class="cal-name">' + text(events[ci].name) + ' &middot; ' + text(formatDateHuman(events[ci].date)) + '</span>' +
+          '<span class="cal-plus" aria-hidden="true">+</span>' +
+        '</button>';
+    }
+    rsvpHTML =
+      '<section id="rsvp" aria-label="RSVP">' +
+        '<h2 class="rsvp-title">RSVP</h2>' +
+        '<p class="rsvp-sub">Your presence is a blessing</p>' +
+        (D.rsvp.note ? '<p class="rsvp-note" dir="auto">' + text(D.rsvp.note) + '</p>' : '') +
+        '<div class="rsvp-actions">' +
+          '<a class="rsvp-wa" id="rsvpBtn" href="#" target="_blank" rel="noopener" aria-label="RSVP on WhatsApp">' +
+            '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.5 3.5A11 11 0 0 0 2.9 17.4L2 22l4.7-1.2A11 11 0 0 0 20.5 3.5zm-8.5 17a8.9 8.9 0 0 1-4.5-1.2l-.3-.2-2.8.7.8-2.7-.2-.3A9 9 0 1 1 12 20.5z"/></svg>' +
+            ' RSVP on WhatsApp' +
+          '</a>' +
         '</div>' +
+        '<div class="cal-list">' + calBtns + '</div>' +
       '</section>';
   }
 
-  /* ---------------- RSVP + CONTACTS ---------------- */
-  var rsvp = D.rsvp || {};
-  var contacts = Array.isArray(D.contacts) ? D.contacts : [];
-  var contactItems = contacts.filter(function (c) {
-    return c && (c.label || c.phone);
-  }).slice(0, 3);
-
-  var contactsHtml = '';
-  if (contactItems.length) {
-    var itemsHtml = '';
-    contactItems.forEach(function (c) {
-      var digits = String(c.phone || '').replace(/\D/g, '');
-      var label = e(c.label || '');
-      var phone = e(c.phone || '');
-      var phoneHtml = digits
-        ? '<a href="tel:' + e(digits) + '">' + phone + '</a>'
-        : phone;
-      itemsHtml += '<li>' + (label ? label + ': ' : '') + phoneHtml + '</li>';
-    });
-    contactsHtml = '<ul class="contact-list">' + itemsHtml + '</ul>';
-  }
-
-  var calendarBtns = '';
-  events.forEach(function (ev, idx) {
-    if (!ev || !ev.date) return;
-    calendarBtns +=
-      '<button class="btn-card rsvp-calendar" type="button" data-event-index="' + idx + '" ' +
-        'aria-label="Add ' + e(ev.name || 'event') + ' to calendar">' +
-        e('+ ' + (ev.name || 'Event')) +
-      '</button>';
-  });
-
-  var rsvpHtml = '';
-  if (rsvp.show) {
-    var waNum = String(rsvp.whatsapp || '').replace(/\D/g, '');
-    rsvpHtml =
-      '<section class="scene reveal-curtain" aria-label="RSVP">' +
-        '<div class="scene-inner stagger">' +
-          '<p class="section-title">RSVP</p>' +
-          (rsvp.note ? '<p class="rsvp-note">' + e(rsvp.note) + '</p>' : '') +
-          '<div class="rsvp-actions">' +
-            (waNum ? '<button class="btn-card btn-card-wa rsvp-whatsapp" type="button">Confirm on WhatsApp</button>' : '') +
-          '</div>' +
-          (calendarBtns ? '<div class="rsvp-calendar-list">' + calendarBtns + '</div>' : '') +
-          contactsHtml +
-        '</div>' +
-      '</section>';
-  }
-
-  /* ---------------- FOOTER ---------------- */
-  var footer = D.footer || {};
-  var footerHtml =
-    '<section class="scene footer-section reveal-star" aria-label="Footer">' +
-      '<div class="scene-inner stagger">' +
-        (footer.thanks ? '<p class="footer-thanks">' + e(footer.thanks) + '</p>' : '') +
-        (footer.family ? '<p class="footer-family">' + e(footer.family) + '</p>' : '') +
-        (footer.closing ? '<p class="footer-closing">' + e(footer.closing) + '</p>' : '') +
-        '<button class="btn-card footer-share" type="button">Share</button>' +
-      '</div>' +
+  // ---------- Finale ----------
+  var finaleHTML =
+    '<section id="finale" aria-label="Thank you">' +
+      '<h2 class="fin-title">JazakAllah</h2>' +
+      '<p class="fin-thanks" dir="auto">' + text(D.footer && D.footer.thanks) + '</p>' +
+      '<div class="fin-ornament" aria-hidden="true"></div>' +
+      '<p class="fin-family" dir="auto">' + text(D.footer && D.footer.family) + '</p>' +
+      '<p class="fin-closing">' + text(D.footer && D.footer.closing) + '</p>' +
+      '<button type="button" id="shareBtn">Share</button>' +
     '</section>';
 
-  /* ---------------- ASSEMBLE ---------------- */
-  var theme = e(D.theme || 'emerald');
-  var title = e((p1.name || 'Nikah') + ' & ' + (p2.name || '') + ' \u2014 Nikah Invitation');
-
-  var safeJSON = JSON.stringify(D).replace(/</g, '\\u003c');
-  var runtimeScript = '(' + window.cardRuntime.toString() + ')(' + safeJSON + ');';
-
-  var html =
-    '<!DOCTYPE html>' +
-    '<html lang="en">' +
-    '<head>' +
-      '<meta charset="utf-8">' +
-      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-      '<title>' + title + '</title>' +
-      '<link rel="preconnect" href="https://fonts.googleapis.com">' +
-      '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
-      '<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Great+Vibes&family=Noto+Nastaliq+Urdu:wght@400;600&family=Reem+Kufi:wght@400;500;600;700&display=swap" rel="stylesheet">' +
-      '<style>' + window.CARD_CSS + '</style>' +
-    '</head>' +
-    '<body class="nikah-body" data-theme="' + theme + '">' +
-      openingHtml +
-      '<main class="card-main">' +
-        heroHtml +
-        salamHtml +
-        eventsHtml +
-        countdownHtml +
-        venueHtml +
-        storyHtml +
-        duaHtml +
-        rsvpHtml +
-        footerHtml +
-      '</main>' +
-      '<script>' + runtimeScript + '</script>' +
-    '</body>' +
+  // ---------- Assemble ----------
+  return '<!DOCTYPE html>\n' +
+    '<html lang="en" data-theme="' + text(theme) + '">\n' +
+    '<head>\n' +
+    '<meta charset="UTF-8">\n' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">\n' +
+    '<meta name="theme-color" content="#3A1426">\n' +
+    '<title>' + text((D.person1 && D.person1.name) || "") + ' &amp; ' + text((D.person2 && D.person2.name) || "") + ' — Nikah Invitation</title>\n' +
+    '<link rel="preconnect" href="https://fonts.googleapis.com">\n' +
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n' +
+    '<link href="https://fonts.googleapis.com/css2?family=Pinyon+Script&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Amiri:ital,wght@0,400;0,700;1,400&family=Reem+Kufi:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet">\n' +
+    '<style>\n' + css + '\n</style>\n' +
+    '</head>\n' +
+    '<body>\n' +
+    arrivalHTML +
+    '<main>\n' +
+    corridorHTML +
+    scratchHTML +
+    programmeHTML +
+    countdownHTML +
+    venueHTML +
+    storyHTML +
+    galleryHTML +
+    duaHTML +
+    rsvpHTML +
+    finaleHTML +
+    '</main>\n' +
+    '<canvas id="fx" aria-hidden="true"></canvas>\n' +
+    '<script>\n' +
+    'window.CARD_CSS = ' + JSON.stringify(css) + ';\n' +
+    '(' + window.cardRuntimeCore.toString() + ')(' + safeJSON + ');\n' +
+    '(' + window.cardRuntimeScenes.toString() + ')(' + safeJSON + ');\n' +
+    '<\/script>\n' +
+    '</body>\n' +
     '</html>';
-
-  return html;
 };
+
 // END OF FILE card.js
