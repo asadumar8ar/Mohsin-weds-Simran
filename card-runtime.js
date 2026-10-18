@@ -1,708 +1,580 @@
-// card-runtime.js — the Arrival scene, music, videos, ambient petals, countdown, guest name.
-// This function is injected into the exported standalone HTML via toString().
-// It must be fully self-contained (no references to outer variables).
-window.CARD_LOADED_RUNTIME = true;
+/* card-runtime.js — runtime core injected into the exported card. */
+"use strict";
+(function () {
+  window.CARD_LOADED_RUNTIME = true;
 
-window.cardRuntimeCore = function (DATA) {
-  "use strict";
+  window.cardRuntimeCore = function (DATA) {
+    "use strict";
 
-  // ---- Global card state ----
-  var reduced = false;
-  try {
-    reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch (e) { reduced = false; }
-
-  var openCallbacks = [];
-  var card = {
-    opened: false,
-    reduced: reduced,
-    onOpen: function (cb) {
-      if (typeof cb !== "function") return;
-      if (card.opened) { try { cb(); } catch (e) {} return; }
-      openCallbacks.push(cb);
-    }
-  };
-  window.__card = card;
-
-  // ---- Helpers ----
-  function $(sel, root) { return (root || document).querySelector(sel); }
-  function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
-  function on(el, ev, fn, opts) { if (el) el.addEventListener(ev, fn, opts || false); }
-  function safeText(s) { return s == null ? "" : String(s); }
-  function prefersReduced() { return card.reduced; }
-
-  // Safely run a function and swallow errors (no console noise).
-  function attempt(fn) { try { fn(); } catch (e) {} }
-
-  // ---- Guest name from ?guest= ----
-  function readGuestName() {
-    var name = "";
-    attempt(function () {
-      var q = window.location.search || "";
-      if (!q) return;
-      var params = new URLSearchParams(q);
-      var g = params.get("guest");
-      if (g) name = g.trim().slice(0, 80);
-    });
-    if (!name) name = "Dear guests and family";
-    return name;
-  }
-
-  // ---- Video URL validation ----
-  function sanitizeVideoUrl(raw) {
-    if (!raw) return "";
-    var v = String(raw).trim();
-    if (!v) return "";
-    if (v.length > 500) return "";
-    if (/[\s"'<>]/.test(v)) return "";
-    var lower = v.toLowerCase();
-    if (lower.indexOf("javascript:") === 0) return "";
-    if (lower.indexOf("data:") === 0) return "";
-    if (lower.indexOf("vbscript:") === 0) return "";
-    if (lower.indexOf("file:") === 0) return "";
-    if (/^https?:\/\//i.test(v)) {
-      if (!/\.(mp4|webm)(\?|#|$)/i.test(v)) return "";
-      return v;
-    }
-    // simple file name like main.mp4
-    if (/^[A-Za-z0-9._\-]+\.(mp4|webm)$/i.test(v)) return v;
-    return "";
-  }
-
-  // ==========================================================
-  // VIDEO MANAGER — creates lazily, respects visibility & tab.
-  // ==========================================================
-  var videos = {
-    opening: null,
-    main: null,
-    finale: null
-  };
-  var videoConfig = {
-    opening: sanitizeVideoUrl(DATA && DATA.videoOpening),
-    main: sanitizeVideoUrl(DATA && DATA.videoMain),
-    finale: sanitizeVideoUrl(DATA && DATA.videoFinale)
-  };
-
-  function makeVideo(slot, src) {
-    if (!src) return null;
-    var v = document.createElement("video");
-    v.className = "bgvideo";
-    v.setAttribute("data-slot", slot);
-    v.muted = true;
-    v.loop = true;
-    v.playsInline = true;
-    v.setAttribute("playsinline", "");
-    v.setAttribute("webkit-playsinline", "");
-    v.preload = "none";
-    v.setAttribute("aria-hidden", "true");
-    v.disablePictureInPicture = true;
-    v.src = src;
-    v.style.opacity = "0";
-    v.style.transition = "opacity 1200ms ease";
-    v.addEventListener("error", function () {
-      // Silent fail: remove the video, CSS fallback stays.
-      if (v.parentNode) v.parentNode.removeChild(v);
-      if (videos[slot] === v) videos[slot] = null;
-    });
-    v.addEventListener("canplay", function () {
-      if (!v.paused) v.style.opacity = "0.55";
-    });
-    return v;
-  }
-
-  function tryPlay(v) {
-    if (!v) return;
-    attempt(function () {
-      var p = v.play();
-      if (p && typeof p.catch === "function") {
-        p.catch(function () {});
-      }
-    });
-  }
-
-  function pauseVid(v) {
-    if (!v) return;
-    attempt(function () { v.pause(); });
-  }
-
-  function setVideosVisibilityFromTab() {
-    if (document.hidden) {
-      pauseVid(videos.opening); pauseVid(videos.main); pauseVid(videos.finale);
-      return;
-    }
-    // Restart the one that should be visible based on scroll position.
-    updateVideosFromViewport();
-  }
-
-  // Determine which video should play based on scroll position.
-  function updateVideosFromViewport() {
-    if (document.hidden) return;
-    var vh = window.innerHeight || 0;
-
-    // Opening: play behind arrival while it is visible.
-    var arrival = document.getElementById("arrival");
-    if (arrival && !arrival.classList.contains("gone") && videos.opening) {
-      tryPlay(videos.opening);
-    } else {
-      pauseVid(videos.opening);
-    }
-
-    // Main: play behind the corridor/scratch stages.
-    var stage = document.getElementById("stage");
-    var scratch = document.getElementById("scratchWrap");
-    var showMain = false;
-    if (stage) {
-      var sr = stage.getBoundingClientRect();
-      if (sr.bottom > 0 && sr.top < vh) showMain = true;
-    }
-    if (scratch) {
-      var scr = scratch.getBoundingClientRect();
-      if (scr.bottom > 0 && scr.top < vh) showMain = true;
-    }
-    if (videos.main && showMain) tryPlay(videos.main);
-    else pauseVid(videos.main);
-
-    // Finale
-    var fin = document.getElementById("finale");
-    if (fin && videos.finale) {
-      var fr = fin.getBoundingClientRect();
-      if (fr.bottom > 0 && fr.top < vh) tryPlay(videos.finale);
-      else pauseVid(videos.finale);
-    }
-  }
-
-  function mountVideos() {
-    // Opening — behind #arrival scene, but before its visual layers.
-    var arrival = document.getElementById("arrival");
-    if (arrival && videoConfig.opening) {
-      videos.opening = makeVideo("opening", videoConfig.opening);
-      if (videos.opening) {
-        arrival.insertBefore(videos.opening, arrival.firstChild);
-      }
-    }
-    // Main — behind corridor stage and behind scratch.
-    if (videoConfig.main) {
-      var stage = document.getElementById("stage");
-      if (stage) {
-        videos.main = makeVideo("main", videoConfig.main);
-        if (videos.main) stage.insertBefore(videos.main, stage.firstChild);
-      }
-      var scratch = document.getElementById("scratchWrap");
-      if (scratch && !videos.main) {
-        videos.main = makeVideo("main", videoConfig.main);
-        if (videos.main) scratch.insertBefore(videos.main, scratch.firstChild);
-      } else if (scratch && videos.main) {
-        // If scratch is a separate section, add another copy just for it.
-        var scratchVid = makeVideo("main", videoConfig.main);
-        if (scratchVid) scratch.insertBefore(scratchVid, scratch.firstChild);
-      }
-    }
-    // Finale
-    var fin = document.getElementById("finale");
-    if (fin && videoConfig.finale) {
-      videos.finale = makeVideo("finale", videoConfig.finale);
-      if (videos.finale) fin.insertBefore(videos.finale, fin.firstChild);
-    }
-  }
-
-  // ==========================================================
-  // MUSIC — never autoplay. Created only inside the tap handler.
-  // ==========================================================
-  var audioEl = null;
-  var muteBtn = null;
-  var musicMuted = false;
-
-  function musicSrc() {
-    var src = DATA && DATA.music;
-    if (!src || typeof src !== "string") return "";
-    if (src.indexOf("data:audio/") !== 0) return "";
-    return src;
-  }
-
-  function createMusicIfAny() {
-    var src = musicSrc();
-    if (!src) return;
-    if (audioEl) return;
-    audioEl = new Audio();
-    audioEl.src = src;
-    audioEl.loop = true;
-    audioEl.preload = "auto";
-    audioEl.volume = 0.45;
-    audioEl.setAttribute("aria-hidden", "true");
-  }
-
-  function playMusic() {
-    var src = musicSrc();
-    if (!src) return;
-    if (!audioEl) createMusicIfAny();
-    if (!audioEl) return;
-    attempt(function () {
-      var p = audioEl.play();
-      if (p && typeof p.catch === "function") p.catch(function () {});
-    });
-    createMuteButton();
-  }
-
-  function createMuteButton() {
-    if (muteBtn) { muteBtn.style.display = "flex"; return; }
-    if (!musicSrc()) return;
-    muteBtn = document.createElement("button");
-    muteBtn.type = "button";
-    muteBtn.id = "muteBtn";
-    muteBtn.setAttribute("aria-label", "Mute music");
-    muteBtn.setAttribute("aria-pressed", "false");
-    muteBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/></svg>';
-    document.body.appendChild(muteBtn);
-    on(muteBtn, "click", function () {
-      musicMuted = !musicMuted;
-      if (audioEl) audioEl.muted = musicMuted;
-      muteBtn.setAttribute("aria-pressed", musicMuted ? "true" : "false");
-      muteBtn.setAttribute("aria-label", musicMuted ? "Unmute music" : "Mute music");
-    });
-  }
-
-  // ==========================================================
-  // ARRIVAL SCENE
-  // ==========================================================
-  function setupArrival() {
-    var arrival = document.getElementById("arrival");
-    var seal = document.getElementById("seal");
-    var hint = document.getElementById("hintTap");
-    if (!arrival || !seal) {
-      // No arrival scene, open immediately.
-      card.opened = true;
-      runOpenCallbacks();
-      return;
-    }
-
-    // Lock scroll until opened.
-    document.body.classList.add("locked");
-
-    // Guest name.
-    var toEl = arrival.querySelector(".env-to");
-    if (toEl) {
-      var guest = readGuestName();
-      toEl.innerHTML = "";
-      var small = document.createElement("small");
-      small.textContent = "To";
-      var nameSpan = document.createElement("span");
-      nameSpan.textContent = guest;
-      nameSpan.setAttribute("dir", "auto");
-      toEl.appendChild(small);
-      toEl.appendChild(nameSpan);
-    }
-    // From line.
-    var fromEl = arrival.querySelector(".env-from");
-    if (fromEl && DATA && DATA.host) {
-      fromEl.textContent = "From: " + safeText(DATA.host);
-    }
-
-    // Seal initials.
-    var initialsEl = arrival.querySelector(".seal-initials");
-    if (initialsEl && DATA && DATA.seal) {
-      initialsEl.textContent = safeText(DATA.seal);
-    }
-
-    // Envelope image override.
-    if (DATA && DATA.envelopeImage) {
-      var body = arrival.querySelector(".env-body");
-      if (body) {
-        var img = document.createElement("img");
-        img.alt = "";
-        img.setAttribute("aria-hidden", "true");
-        img.src = DATA.envelopeImage;
-        img.style.position = "absolute";
-        img.style.inset = "0";
-        img.style.width = "100%";
-        img.style.height = "100%";
-        img.style.objectFit = "cover";
-        img.style.borderRadius = "8px";
-        body.appendChild(img);
-        // Face content stays above.
-        var face = arrival.querySelector(".env-face");
-        if (face) {
-          face.style.position = "absolute";
-          face.style.zIndex = "3";
+    /* ---- Shared state ---- */
+    var card = window.__card = {
+      opened: false,
+      safe: (location.search.indexOf("safe=1") > -1),
+      reduced: (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) || false,
+      _cbs: [],
+      onOpen: function (cb) {
+        if (this.opened) { try { cb(); } catch (e) {} }
+        else { this._cbs.push(cb); }
+      },
+      fireOpen: function () {
+        if (this.opened) return;
+        this.opened = true;
+        var cbs = this._cbs.slice();
+        this._cbs = [];
+        for (var i = 0; i < cbs.length; i++) {
+          try { cbs[i](); } catch (e) {}
         }
       }
+    };
+
+    /* Set theme immediately. */
+    try {
+      var theme = (DATA && DATA.theme) ? String(DATA.theme) : "gulabi";
+      document.documentElement.setAttribute("data-theme", theme);
+    } catch (e) {}
+
+    /* ---- Helpers ---- */
+    function $(sel, root) { return (root || document).querySelector(sel); }
+    function $$(sel, root) {
+      var list = (root || document).querySelectorAll(sel);
+      var out = []; for (var i = 0; i < list.length; i++) out.push(list[i]);
+      return out;
     }
-
-    // Hint tap text.
-    if (hint) {
-      hint.textContent = reduced ? "Tap to open" : "Tap the seal to open";
+    function on(el, ev, fn, opt) { if (el) el.addEventListener(ev, fn, opt || false); }
+    function esc(s) {
+      if (s == null) return "";
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
+    function safeText(el, txt) { if (el) el.textContent = txt == null ? "" : String(txt); }
+    function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
 
-    // Seal click.
-    var opened = false;
-    function openCard() {
-      if (opened) return;
-      opened = true;
+    /* ============================================================
+       GUEST NAME
+       ============================================================ */
+    try {
+      var qs = location.search || "";
+      var m = qs.match(/[?&]guest=([^&]*)/);
+      if (m) {
+        var raw = m[1].replace(/\+/g, " ");
+        var decoded = "";
+        try { decoded = decodeURIComponent(raw); } catch (e) { decoded = raw; }
+        decoded = decoded.slice(0, 40).replace(/<[^>]*>/g, "").trim();
+        if (decoded) {
+          var gEl = document.getElementById("guestName");
+          if (gEl) gEl.textContent = decoded;
+          card.guestName = decoded;
+        }
+      } else {
+        var gEl2 = document.getElementById("guestName");
+        if (gEl2 && !gEl2.textContent) gEl2.textContent = "Dear guests and family";
+      }
+    } catch (e) { /* ignore */ }
 
-      // Play music only inside this user-gesture handler.
-      attempt(playMusic);
+    /* ============================================================
+       ARRIVAL — envelope + seal
+       ============================================================ */
+    try {
+      var arrival = document.getElementById("arrival");
+      var envelope = document.getElementById("envelope");
+      var seal = document.getElementById("seal");
+      var hintTap = document.getElementById("hintTap");
+      var stageEl = document.getElementById("stage");
+      var body = document.body;
 
-      // Explode seal into fragments.
-      if (!reduced) {
-        spawnSealFragments(arrival, seal);
+      if (arrival) {
+        body.classList.add("locked");
+        arrival.classList.add("show-line");
+
+        setTimeout(function () {
+          try { arrival.classList.add("pinged"); } catch (e) {}
+        }, 300);
+
+        setTimeout(function () {
+          try { arrival.classList.add("env-shown"); } catch (e) {}
+        }, 800);
+
+        setTimeout(function () {
+          try { arrival.classList.add("env-float"); } catch (e) {}
+        }, 1700);
+
+        if (card.reduced || card.safe) {
+          arrival.classList.add("show-line", "env-shown");
+          body.classList.remove("locked");
+        }
       }
 
-      // Open flap.
-      arrival.classList.add("opening");
+      var opened = false;
 
-      // Slide card up, fade out arrival.
-      setTimeout(function () {
-        arrival.classList.add("gone");
-        document.body.classList.remove("locked");
-        card.opened = true;
-        runOpenCallbacks();
-        // Ambient petals after opening.
-        startAmbient();
-        // Enable video visibility tracking.
-        attempt(updateVideosFromViewport);
-        // Scroll to corridor start.
-        var stage = document.getElementById("stage");
-        if (stage) {
-          attempt(function () {
-            window.scrollTo(0, stage.offsetTop);
+      function crackSeal() {
+        if (!seal) return;
+        try {
+          seal.classList.add("cracked");
+          var rect = seal.getBoundingClientRect();
+          var cx = rect.left + rect.width / 2;
+          var cy = rect.top + rect.height / 2;
+          var fragCount = 9;
+          for (var i = 0; i < fragCount; i++) {
+            var f = document.createElement("span");
+            f.className = "seal-frag";
+            f.style.left = cx + "px";
+            f.style.top = cy + "px";
+            f.style.transform = "translate(-50%,-50%)";
+            f.style.width = (8 + Math.random() * 8) + "px";
+            f.style.height = (8 + Math.random() * 8) + "px";
+            document.body.appendChild(f);
+            (function (frag) {
+              var ang = Math.random() * Math.PI * 2;
+              var dist = 40 + Math.random() * 90;
+              var tx = Math.cos(ang) * dist;
+              var ty = Math.sin(ang) * dist - 30;
+              var rot = (Math.random() - 0.5) * 720;
+              requestAnimationFrame(function () {
+                frag.style.transition = "transform .7s cubic-bezier(.2,.8,.3,1), opacity .7s ease";
+                frag.style.transform = "translate(-50%,-50%) translate(" + tx + "px," + ty + "px) rotate(" + rot + "deg)";
+                frag.style.opacity = "0";
+              });
+              setTimeout(function () { if (frag.parentNode) frag.parentNode.removeChild(frag); }, 900);
+            })(f);
+          }
+          /* Gold sparkles */
+          for (var s = 0; s < 16; s++) {
+            var sp = document.createElement("span");
+            sp.className = "sparkle";
+            sp.style.left = cx + "px";
+            sp.style.top = cy + "px";
+            document.body.appendChild(sp);
+            (function (spark) {
+              var ang = Math.random() * Math.PI * 2;
+              var dist = 20 + Math.random() * 120;
+              var tx = Math.cos(ang) * dist;
+              var ty = Math.sin(ang) * dist;
+              spark.style.transition = "transform .8s ease-out, opacity .8s ease-out";
+              requestAnimationFrame(function () {
+                spark.style.transform = "translate(" + tx + "px," + ty + "px) scale(.4)";
+                spark.style.opacity = "0";
+              });
+              setTimeout(function () { if (spark.parentNode) spark.parentNode.removeChild(spark); }, 1000);
+            })(sp);
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      function openCard() {
+        if (opened) return;
+        opened = true;
+        try {
+          if (seal) seal.style.pointerEvents = "none";
+          crackSeal();
+          setTimeout(function () {
+            try { if (envelope) envelope.classList.add("open"); } catch (e) {}
+          }, 300);
+          setTimeout(function () {
+            try { arrival.classList.add("leaving"); } catch (e) {}
+          }, 1500);
+          setTimeout(function () {
+            try {
+              arrival.style.display = "none";
+              body.classList.remove("locked");
+              if (stageEl) stageEl.scrollIntoView({ block: "start" });
+              if (card) card.fireOpen();
+              document.documentElement.classList.add("card-opened");
+              var ev = new CustomEvent("card:opened");
+              window.dispatchEvent(ev);
+            } catch (e) {}
+          }, 2200);
+        } catch (e) {}
+      }
+
+      if (seal) {
+        on(seal, "click", openCard);
+        on(seal, "keydown", function (e) {
+          if (e.key === "Enter" || e.key === " " || e.keyCode === 13 || e.keyCode === 32) {
+            e.preventDefault();
+            openCard();
+          }
+        });
+        if (!seal.getAttribute("tabindex")) seal.setAttribute("tabindex", "0");
+        if (!seal.getAttribute("role")) seal.setAttribute("role", "button");
+        if (!seal.getAttribute("aria-label")) seal.setAttribute("aria-label", "Open the invitation");
+      }
+
+      if (card.reduced || card.safe) {
+        /* In reduced motion: still require a tap, but skip animations. */
+        if (seal) {
+          seal.classList.remove("cracked");
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    /* ============================================================
+       MUSIC — never autoplay
+       ============================================================ */
+    try {
+      var musicSrc = DATA && DATA.music && DATA.music.src ? String(DATA.music.src) : "";
+      var audio = null;
+      var muteBtn = null;
+
+      function isValidAudioSrc(v) {
+        if (!v) return false;
+        var s = String(v).trim();
+        if (/^\s*javascript:/i.test(s) || /^\s*data:/i.test(s)) return false;
+        if (/\s/.test(s.replace(/^https?:\/\/[^\s]+/i, ""))) return false;
+        if (/["']/.test(s)) return false;
+        return /^https?:\/\//i.test(s) || /\.(mp3|ogg|m4a|wav)$/i.test(s);
+      }
+
+      function createMuteBtn() {
+        if (muteBtn) return;
+        if (!musicSrc || !isValidAudioSrc(musicSrc)) return;
+        muteBtn = document.createElement("button");
+        muteBtn.type = "button";
+        muteBtn.id = "muteBtn";
+        muteBtn.setAttribute("aria-label", "Mute music");
+        muteBtn.setAttribute("aria-pressed", "false");
+        muteBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>';
+        on(muteBtn, "click", function () {
+          try {
+            if (!audio) return;
+            audio.muted = !audio.muted;
+            muteBtn.setAttribute("aria-pressed", audio.muted ? "true" : "false");
+          } catch (e) {}
+        });
+        document.body.appendChild(muteBtn);
+      }
+
+      /* First tap anywhere triggers music (only once, only if valid). */
+      if (musicSrc && isValidAudioSrc(musicSrc)) {
+        var musicStarted = false;
+        function tryStartMusic() {
+          if (musicStarted) return;
+          musicStarted = true;
+          try {
+            audio = new Audio(musicSrc);
+            audio.loop = true;
+            audio.volume = 0.35;
+            var p = audio.play();
+            if (p && p.catch) p.catch(function () { /* silent */ });
+            card.onOpen(function () { createMuteBtn(); });
+          } catch (e) {}
+        }
+        on(document, "pointerdown", tryStartMusic, { once: false, passive: true });
+        on(document, "keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") tryStartMusic();
+        }, { once: false });
+      }
+    } catch (e) { /* ignore */ }
+
+    /* ============================================================
+       VIDEOS
+       ============================================================ */
+    try {
+      var vidsCfg = DATA && DATA.videos ? DATA.videos : {};
+      var validVidSrc = function (v) {
+        if (!v) return "";
+        var s = String(v).trim();
+        if (!s) return "";
+        if (/^javascript:/i.test(s) || /^data:/i.test(s)) return "";
+        if (/\s/.test(s)) return "";
+        if (/["']/.test(s)) return "";
+        if (/^https?:\/\//i.test(s)) {
+          if (!/\.(mp4|webm)(\?|#|$)/i.test(s)) return "";
+          return s;
+        }
+        if (/^[A-Za-z0-9_\-.]+\.(mp4|webm)$/i.test(s)) return s;
+        return "";
+      };
+
+      var slots = [
+        { key: "opening", v: validVidSrc(vidsCfg.opening) },
+        { key: "main", v: validVidSrc(vidsCfg.main) },
+        { key: "finale", v: validVidSrc(vidsCfg.finale) }
+      ];
+
+      var videoEls = [];
+
+      if (!card.safe) {
+        for (var vi = 0; vi < slots.length; vi++) {
+          (function (slot) {
+            if (!slot.v) return;
+            var hosts = $$('video.bgvideo[data-slot="' + slot.key + '"]');
+            for (var h = 0; h < hosts.length; h++) {
+              (function (v) {
+                try {
+                  v.setAttribute("src", slot.v);
+                  v.muted = true;
+                  v.loop = true;
+                  v.playsInline = true;
+                  v.setAttribute("playsinline", "");
+                  v.setAttribute("muted", "");
+                  v.preload = "none";
+                  v.style.opacity = "0.55";
+                  v.addEventListener("error", function () {
+                    try { if (v.parentNode) v.parentNode.removeChild(v); } catch (e) {}
+                  });
+                  v.addEventListener("loadeddata", function () {
+                    try { v.style.opacity = "0.55"; } catch (e) {}
+                  });
+                  videoEls.push(v);
+                } catch (e) {}
+              })(hosts[h]);
+            }
+          })(slots[vi]);
+        }
+
+        /* Pause off-screen videos. */
+        if ("IntersectionObserver" in window) {
+          var vio = new IntersectionObserver(function (entries) {
+            for (var i = 0; i < entries.length; i++) {
+              var en = entries[i];
+              var v = en.target;
+              try {
+                if (en.isIntersecting) {
+                  if (card.opened) {
+                    v.preload = "auto";
+                    var p = v.play();
+                    if (p && p.catch) p.catch(function () {});
+                  }
+                } else {
+                  v.pause();
+                }
+              } catch (e) {}
+            }
+          }, { threshold: 0.15 });
+          for (var vk = 0; vk < videoEls.length; vk++) {
+            try { vio.observe(videoEls[vk]); } catch (e) {}
+          }
+        }
+
+        /* Pause on hidden tab. */
+        document.addEventListener("visibilitychange", function () {
+          try {
+            for (var i = 0; i < videoEls.length; i++) {
+              if (document.hidden) videoEls[i].pause();
+              else if (card.opened) {
+                var p = videoEls[i].play();
+                if (p && p.catch) p.catch(function () {});
+              }
+            }
+          } catch (e) {}
+        });
+
+        /* Start playing after open. */
+        card.onOpen(function () {
+          for (var i = 0; i < videoEls.length; i++) {
+            try {
+              videoEls[i].preload = "auto";
+              var p = videoEls[i].play();
+              if (p && p.catch) p.catch(function () {});
+            } catch (e) {}
+          }
+        });
+      } else {
+        /* Safe mode: remove all bg videos */
+        var all = $$("video.bgvideo");
+        for (var ai = 0; ai < all.length; ai++) {
+          try { if (all[ai].parentNode) all[ai].parentNode.removeChild(all[ai]); } catch (e) {}
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    /* ============================================================
+       PETALS + GOLD DUST
+       ============================================================ */
+    try {
+      if (!card.safe && !card.reduced) {
+        var canvas = document.getElementById("fx");
+        if (canvas) {
+          var ctx = canvas.getContext("2d");
+          var dpr = Math.min(window.devicePixelRatio || 1, 2);
+          var W = 0, H = 0;
+          var parts = [];
+          var running = false;
+          var rafId = null;
+          var MAX = 40;
+
+          function resize() {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = Math.floor(W * dpr);
+            canvas.height = Math.floor(H * dpr);
+            canvas.style.width = W + "px";
+            canvas.style.height = H + "px";
+            if (ctx && ctx.setTransform) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          }
+          resize();
+          window.addEventListener("resize", resize);
+
+          function makePetal(burst) {
+            var r = Math.random();
+            return {
+              x: Math.random() * W,
+              y: burst ? H * 0.3 + Math.random() * 80 : -30 - Math.random() * 80,
+              vx: (Math.random() - 0.5) * (burst ? 3.5 : 0.8),
+              vy: burst ? -(1.5 + Math.random() * 2.5) : (0.4 + Math.random() * 0.8),
+              size: 4 + Math.random() * 7,
+              rot: Math.random() * Math.PI * 2,
+              vr: (Math.random() - 0.5) * 0.06,
+              sway: Math.random() * Math.PI * 2,
+              swaySpeed: 0.006 + Math.random() * 0.01,
+              color: r < 0.7 ? "#d9a0a6" : "#f0d58a",
+              gold: r >= 0.7,
+              life: burst ? 1 : 0,
+              fade: burst ? 0.006 + Math.random() * 0.004 : 0
+            };
+          }
+
+          function tick() {
+            if (!running) return;
+            ctx.clearRect(0, 0, W, H);
+            for (var i = parts.length - 1; i >= 0; i--) {
+              var p = parts[i];
+              p.sway += p.swaySpeed;
+              p.x += p.vx + Math.sin(p.sway) * 0.4;
+              p.y += p.vy;
+              p.rot += p.vr;
+              if (p.life > 0) {
+                p.life -= p.fade;
+                if (p.life <= 0) { parts.splice(i, 1); continue; }
+              }
+              ctx.save();
+              ctx.translate(p.x, p.y);
+              ctx.rotate(p.rot);
+              ctx.globalAlpha = p.life > 0 ? Math.max(0, p.life) : 1;
+              if (p.gold) {
+                var g = ctx.createRadialGradient(0, 0, 0, 0, 0, p.size);
+                g.addColorStop(0, "rgba(255,248,224,0.95)");
+                g.addColorStop(0.5, "rgba(240,213,138,0.75)");
+                g.addColorStop(1, "rgba(201,162,75,0)");
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(0, 0, p.size * 0.7, 0, Math.PI * 2);
+                ctx.fill();
+              } else {
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, p.size, p.size * 0.6, 0, 0, Math.PI * 2);
+                ctx.fill();
+              }
+              ctx.restore();
+              if (p.life === 0 && (p.y > H + 30 || p.x < -30 || p.x > W + 30)) {
+                parts.splice(i, 1);
+              }
+            }
+            /* Top-up ambient petals */
+            while (parts.length < MAX && Math.random() < 0.4) {
+              parts.push(makePetal(false));
+            }
+            rafId = requestAnimationFrame(tick);
+          }
+
+          function start() {
+            if (running) return;
+            running = true;
+            canvas.classList.add("on");
+            for (var i = 0; i < 16; i++) parts.push(makePetal(false));
+            rafId = requestAnimationFrame(tick);
+          }
+
+          function stop() {
+            running = false;
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = null;
+          }
+
+          card.onOpen(function () {
+            setTimeout(start, 400);
+          });
+
+          window.__cardBurst = function () {
+            try {
+              for (var i = 0; i < 30; i++) {
+                var p = makePetal(true);
+                p.y = H * 0.55 + Math.random() * 40;
+                parts.push(p);
+              }
+            } catch (e) {}
+          };
+
+          document.addEventListener("visibilitychange", function () {
+            if (document.hidden) stop();
+            else if (card.opened) start();
           });
         }
-      }, reduced ? 100 : 900);
-    }
-
-    on(seal, "click", openCard);
-    on(seal, "keydown", function (e) {
-      if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
-        e.preventDefault();
-        openCard();
       }
-    });
-    seal.setAttribute("tabindex", "0");
-    seal.setAttribute("role", "button");
-    seal.setAttribute("aria-label", "Open the invitation");
-  }
+    } catch (e) { /* ignore */ }
 
-  function spawnSealFragments(arrival, seal) {
-    var rect = seal.getBoundingClientRect();
-    var cx = rect.left + rect.width / 2;
-    var cy = rect.top + rect.height / 2;
-    var frag = 10;
-    for (var i = 0; i < frag; i++) {
-      (function (i) {
-        var f = document.createElement("div");
-        f.className = "seal-frag";
-        var angle = (Math.PI * 2 * i) / frag + Math.random() * 0.5;
-        var dist = 60 + Math.random() * 80;
-        var fx = Math.cos(angle) * dist;
-        var fy = Math.sin(angle) * dist;
-        var fr = (Math.random() * 720 - 360) + "deg";
-        f.style.left = cx + "px";
-        f.style.top = cy + "px";
-        f.style.setProperty("--fx", fx + "px");
-        f.style.setProperty("--fy", fy + "px");
-        f.style.setProperty("--fr", fr);
-        f.style.animation = "fragFly 900ms cubic-bezier(0.2,0.8,0.4,1) forwards";
-        f.style.animationDelay = (i * 12) + "ms";
-        arrival.appendChild(f);
-        setTimeout(function () {
-          if (f.parentNode) f.parentNode.removeChild(f);
-        }, 1100);
-      })(i);
-    }
-    // Sparkle burst.
-    for (var s = 0; s < 18; s++) {
-      (function (s) {
-        var sp = document.createElement("div");
-        sp.className = "sparkle";
-        var a = Math.random() * Math.PI * 2;
-        var d = 40 + Math.random() * 120;
-        sp.style.left = cx + "px";
-        sp.style.top = cy + "px";
-        sp.style.transform = "translate(-50%,-50%)";
-        var tx = Math.cos(a) * d;
-        var ty = Math.sin(a) * d;
-        sp.style.transition = "transform 800ms cubic-bezier(0.2,0.8,0.4,1), opacity 800ms ease";
-        sp.style.opacity = "1";
-        arrival.appendChild(sp);
-        requestAnimationFrame(function () {
-          sp.style.transform = "translate(calc(-50% + " + tx + "px), calc(-50% + " + ty + "px)) scale(0.2)";
-          sp.style.opacity = "0";
-        });
-        setTimeout(function () {
-          if (sp.parentNode) sp.parentNode.removeChild(sp);
-        }, 1000);
-      })(s);
-    }
-    // Seal itself fades out.
-    seal.style.transition = "opacity 300ms ease, transform 300ms ease";
-    seal.style.opacity = "0";
-    seal.style.transform = "translate(-50%,-50%) scale(0.4)";
-  }
-
-  function runOpenCallbacks() {
-    var cbs = openCallbacks.slice();
-    openCallbacks = [];
-    for (var i = 0; i < cbs.length; i++) {
-      attempt(cbs[i]);
-    }
-  }
-
-  // ==========================================================
-  // AMBIENT — falling rose petals + gold dust on canvas#fx
-  // ==========================================================
-  var fxCanvas = null;
-  var fxCtx = null;
-  var particles = [];
-  var fxRAF = null;
-  var fxStarted = false;
-
-  function startAmbient() {
-    if (fxStarted) return;
-    if (prefersReduced()) return;
-    fxStarted = true;
-    fxCanvas = document.getElementById("fx");
-    if (!fxCanvas) return;
-    fxCtx = fxCanvas.getContext("2d");
-    if (!fxCtx) return;
-    resizeFx();
-    // Build initial particles.
-    var count = 34;
-    particles = [];
-    for (var i = 0; i < count; i++) {
-      particles.push(makeParticle(true));
-    }
-    fxCanvas.classList.add("on");
-    on(window, "resize", resizeFx);
-    document.addEventListener("visibilitychange", function () {
-      if (document.hidden) stopFx();
-      else if (card.opened) startFx();
-    });
-    startFx();
-  }
-
-  function resizeFx() {
-    if (!fxCanvas) return;
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    fxCanvas.width = Math.floor(window.innerWidth * dpr);
-    fxCanvas.height = Math.floor(window.innerHeight * dpr);
-    fxCanvas.style.width = window.innerWidth + "px";
-    fxCanvas.style.height = window.innerHeight + "px";
-    if (fxCtx) fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
-
-  function makeParticle(initial) {
-    var isPetal = Math.random() < 0.55;
-    var w = window.innerWidth || 360;
-    var h = window.innerHeight || 640;
-    return {
-      isPetal: isPetal,
-      x: Math.random() * w,
-      y: initial ? Math.random() * h : -20,
-      size: isPetal ? 6 + Math.random() * 7 : 1 + Math.random() * 2,
-      speedY: isPetal ? 0.4 + Math.random() * 0.8 : 0.2 + Math.random() * 0.5,
-      speedX: -0.3 + Math.random() * 0.6,
-      sway: Math.random() * Math.PI * 2,
-      swaySpeed: 0.005 + Math.random() * 0.02,
-      swayAmp: isPetal ? 0.6 + Math.random() * 0.9 : 0.2 + Math.random() * 0.4,
-      rot: Math.random() * Math.PI * 2,
-      rotSpeed: -0.02 + Math.random() * 0.04,
-      alpha: isPetal ? 0.55 + Math.random() * 0.35 : 0.4 + Math.random() * 0.5
-    };
-  }
-
-  function startFx() {
-    if (fxRAF) return;
-    if (!fxCtx) return;
-    var last = 0;
-    function frame(t) {
-      if (document.hidden) { fxRAF = null; return; }
-      if (t - last < 24) { fxRAF = requestAnimationFrame(frame); return; }
-      last = t;
-      drawFx();
-      fxRAF = requestAnimationFrame(frame);
-    }
-    fxRAF = requestAnimationFrame(frame);
-  }
-
-  function stopFx() {
-    if (fxRAF) { cancelAnimationFrame(fxRAF); fxRAF = null; }
-  }
-
-  function drawFx() {
-    if (!fxCtx) return;
-    var w = window.innerWidth;
-    var h = window.innerHeight;
-    fxCtx.clearRect(0, 0, w, h);
-    for (var i = 0; i < particles.length; i++) {
-      var p = particles[i];
-      p.sway += p.swaySpeed;
-      p.x += p.speedX + Math.sin(p.sway) * p.swayAmp * 0.4;
-      p.y += p.speedY;
-      p.rot += p.rotSpeed;
-      if (p.y > h + 20 || p.x < -30 || p.x > w + 30) {
-        particles[i] = makeParticle(false);
-        continue;
+    /* ============================================================
+       COUNTDOWN
+       ============================================================ */
+    try {
+      var eventsList = (DATA && DATA.events) ? DATA.events : [];
+      var mainEv = null;
+      for (var ei = 0; ei < eventsList.length; ei++) {
+        if (eventsList[ei] && eventsList[ei].isMain) { mainEv = eventsList[ei]; break; }
       }
-      fxCtx.save();
-      fxCtx.translate(p.x, p.y);
-      fxCtx.rotate(p.rot);
-      fxCtx.globalAlpha = p.alpha;
-      if (p.isPetal) {
-        var grad = fxCtx.createLinearGradient(-p.size, -p.size, p.size, p.size);
-        grad.addColorStop(0, "#F2C4CB");
-        grad.addColorStop(1, "#B85A6E");
-        fxCtx.fillStyle = grad;
-        fxCtx.beginPath();
-        // Petal shape: rounded teardrop.
-        fxCtx.ellipse(0, 0, p.size, p.size * 0.55, 0, 0, Math.PI * 2);
-        fxCtx.fill();
-      } else {
-        fxCtx.fillStyle = "#F0D58A";
-        fxCtx.shadowColor = "#F0D58A";
-        fxCtx.shadowBlur = 6;
-        fxCtx.beginPath();
-        fxCtx.arc(0, 0, p.size, 0, Math.PI * 2);
-        fxCtx.fill();
-      }
-      fxCtx.restore();
-    }
-  }
+      if (!mainEv && eventsList.length) mainEv = eventsList[0];
 
-  // ==========================================================
-  // COUNTDOWN — reads .cd-num[data-unit] elements.
-  // ==========================================================
-  function findMainEvent() {
-    if (!DATA || !DATA.events || !DATA.events.length) return null;
-    for (var i = 0; i < DATA.events.length; i++) {
-      if (DATA.events[i] && DATA.events[i].isMain) return DATA.events[i];
-    }
-    return DATA.events[0];
-  }
-
-  // Build a Date object for an event in IST.
-  function eventDateIST(ev) {
-    if (!ev || !ev.date) return null;
-    var dateParts = String(ev.date).split("-");
-    if (dateParts.length !== 3) return null;
-    var y = parseInt(dateParts[0], 10);
-    var m = parseInt(dateParts[1], 10);
-    var d = parseInt(dateParts[2], 10);
-    var timeParts = (ev.time || "00:00").split(":");
-    var hh = parseInt(timeParts[0], 10) || 0;
-    var mm = parseInt(timeParts[1], 10) || 0;
-    if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
-    // IST = UTC+5:30, fixed offset (no DST in India).
-    var utcMs = Date.UTC(y, m - 1, d, hh, mm) - 5.5 * 60 * 60 * 1000;
-    var dt = new Date(utcMs);
-    return isNaN(dt.getTime()) ? null : dt;
-  }
-
-  function setupCountdown() {
-    var wrap = document.getElementById("countdown");
-    if (!wrap) return;
-    var ev = findMainEvent();
-    var target = eventDateIST(ev);
-    var grid = wrap.querySelector(".cd-grid");
-    var begun = wrap.querySelector(".cd-begun");
-    if (!target) {
-      if (grid) grid.style.display = "none";
-      if (begun) begun.style.display = "block";
-      return;
-    }
-    var nums = {
-      days: wrap.querySelector('.cd-num[data-unit="days"]'),
-      hours: wrap.querySelector('.cd-num[data-unit="hours"]'),
-      minutes: wrap.querySelector('.cd-num[data-unit="minutes"]'),
-      seconds: wrap.querySelector('.cd-num[data-unit="seconds"]')
-    };
-    function pad2(n) { return (n < 10 ? "0" : "") + n; }
-    function setNum(el, val) {
-      if (!el) return;
-      var s = val;
-      if (el.textContent !== s) {
-        el.textContent = s;
-        if (!prefersReduced()) {
-          el.classList.remove("flip");
-          // Force reflow then add.
-          void el.offsetWidth;
-          el.classList.add("flip");
+      var cdNums = $$(".cd-num");
+      var cdWrap = document.getElementById("countdown");
+      if (mainEv && cdNums.length) {
+        var dateStr = (mainEv.date || "").trim();
+        var timeStr = (mainEv.time || "12:00").trim();
+        var target = null;
+        if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+          var iso = dateStr + "T" + (timeStr.length === 5 ? timeStr : "12:00") + ":00+05:30";
+          var d = new Date(iso);
+          if (!isNaN(d.getTime())) target = d;
         }
+
+        var last = { days: -1, hours: -1, minutes: -1, seconds: -1 };
+        var doneEl = null;
+
+        function pad(n) { return n < 10 ? "0" + n : String(n); }
+
+        function updateCd() {
+          if (!target) return;
+          var diff = target.getTime() - Date.now();
+          if (diff <= 0) {
+            for (var i = 0; i < cdNums.length; i++) {
+              cdNums[i].textContent = "00";
+            }
+            if (!doneEl && cdWrap) {
+              doneEl = document.createElement("div");
+              doneEl.className = "cd-done";
+              doneEl.textContent = "The celebrations have begun";
+              cdWrap.appendChild(doneEl);
+              var grid = cdWrap.querySelector(".cd-grid");
+              if (grid) grid.style.opacity = "0.55";
+            }
+            return;
+          }
+          var totalSec = Math.floor(diff / 1000);
+          var days = Math.floor(totalSec / 86400);
+          var hours = Math.floor((totalSec % 86400) / 3600);
+          var minutes = Math.floor((totalSec % 3600) / 60);
+          var seconds = totalSec % 60;
+          var vals = { days: days, hours: hours, minutes: minutes, seconds: seconds };
+          for (var j = 0; j < cdNums.length; j++) {
+            var el = cdNums[j];
+            var unit = el.getAttribute("data-unit");
+            if (!unit || !(unit in vals)) continue;
+            var v = vals[unit];
+            if (last[unit] !== v) {
+              el.classList.add("flip");
+              (function (elx, val) {
+                setTimeout(function () {
+                  elx.textContent = pad(val);
+                  elx.classList.remove("flip");
+                }, 180);
+              })(el, v);
+              last[unit] = v;
+            }
+          }
+        }
+        updateCd();
+        setInterval(updateCd, 1000);
       }
-    }
-    function tick() {
-      var now = Date.now();
-      var diff = target.getTime() - now;
-      if (diff <= 0) {
-        if (grid) grid.style.display = "none";
-        if (begun) begun.style.display = "block";
-        clearInterval(timer);
-        return;
-      }
-      var totalSec = Math.floor(diff / 1000);
-      var days = Math.floor(totalSec / 86400);
-      var hours = Math.floor((totalSec % 86400) / 3600);
-      var mins = Math.floor((totalSec % 3600) / 60);
-      var secs = totalSec % 60;
-      setNum(nums.days, String(days));
-      setNum(nums.hours, pad2(hours));
-      setNum(nums.minutes, pad2(mins));
-      setNum(nums.seconds, pad2(secs));
-    }
-    tick();
-    var timer = setInterval(tick, 1000);
-    document.addEventListener("visibilitychange", function () {
-      if (!document.hidden) tick();
-    });
-  }
-
-  // ==========================================================
-  // VIDEO VISIBILITY — on scroll/resize, throttle via rAF.
-  // ==========================================================
-  var visRAFPending = false;
-  function scheduleVideoUpdate() {
-    if (visRAFPending) return;
-    visRAFPending = true;
-    requestAnimationFrame(function () {
-      visRAFPending = false;
-      attempt(updateVideosFromViewport);
-    });
-  }
-
-  // ==========================================================
-  // BOOT
-  // ==========================================================
-  function boot() {
-    // Set theme on root.
-    if (DATA && DATA.theme) {
-      document.documentElement.setAttribute("data-theme", DATA.theme);
-    } else {
-      document.documentElement.setAttribute("data-theme", "gulabi");
-    }
-
-    // Mount videos (lazy, no autoplay until visible).
-    attempt(mountVideos);
-
-    // Arrival scene.
-    attempt(setupArrival);
-
-    // Countdown.
-    attempt(setupCountdown);
-
-    // Video scroll tracking.
-    on(window, "scroll", scheduleVideoUpdate, { passive: true });
-    on(window, "resize", scheduleVideoUpdate);
-    document.addEventListener("visibilitychange", setVideosVisibilityFromTab);
-
-    // One-time "opened" hook for the scenes file to use.
-    card.onOpen(function () {
-      // The Arrival scene has finished; scenes file will run its own logic.
-    });
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot);
-  } else {
-    boot();
-  }
-};
-
+    } catch (e) { /* ignore */ }
+  };
+})();
 // END OF FILE card-runtime.js
