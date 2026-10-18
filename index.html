@@ -1,989 +1,663 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <!-- Mobile first. viewport-fit=cover lets the card use the full phone screen. -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#04211c" />
-  <meta name="description" content="Build an elegant Islamic wedding invitation (Nikah / Walima) and download it as one ready-to-share HTML file." />
-  <title>Nikah Card Builder</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Nikah Card Builder</title>
 
-  <!-- Fonts used by the card itself (Reem Kufi, Amiri, Noto Nastaliq Urdu,
-       Great Vibes, Cormorant Garamond). The same link is copied into the
-       exported card, so what you preview is what guests will see. -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400;500;600&family=Amiri:ital,wght@0,400;0,700;1,400&family=Noto+Nastaliq+Urdu:wght@400;500&family=Great+Vibes&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap"
-    rel="stylesheet"
-  />
+<!-- The only external resource allowed: Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&amp;family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&amp;family=Great+Vibes&amp;family=Noto+Nastaliq+Urdu:wght@400;600&amp;family=Reem+Kufi:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
 
-  <!-- The builder's own look lives here on purpose:
-       card.css holds ONLY the invitation styles and is fetched as text
-       by builder.js, so nothing from the builder leaks into the export. -->
-  <style>
-    /* ---------- 1. Builder theme variables ---------- */
-    :root {
-      --ui-bg: #04211c;
-      --ui-bg-2: #072b24;
-      --ui-panel: #0a342c;
-      --ui-panel-2: rgba(255, 255, 255, 0.05);
-      --ui-ink: #f3efe1;
-      --ui-ink-soft: rgba(243, 239, 225, 0.66);
-      --ui-gold: #e6c27e;
-      --ui-gold-2: #bf9546;
-      --ui-line: rgba(230, 194, 126, 0.26);
-      --ui-glow: rgba(230, 194, 126, 0.3);
-      --ui-danger: #ff9b9b;
-      --radius: 14px;
-      --topbar-h: 58px;
+<style>
+  /* ---------- tiny reset ---------- */
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    min-height: 100%;
+    font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #e9f2ec;
+    background: #020b08;
+    background-image:
+      radial-gradient(900px 520px at 50% -12%, #0e4030 0%, rgba(4,21,15,0) 62%),
+      radial-gradient(700px 420px at 92% 108%, #0a2b21 0%, rgba(2,11,8,0) 60%),
+      linear-gradient(180deg, #04150f 0%, #020b08 100%);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- loader ---------- */
+  #loader {
+    position: fixed;
+    left: 0; top: 0; right: 0; bottom: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    text-align: center;
+    padding: 24px;
+    background: radial-gradient(circle at 50% 42%, #0d3a2a 0%, #04150f 68%, #020b08 100%);
+    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
+    letter-spacing: 0.09em;
+    color: #f2d98a;
+  }
+  .loader-ring {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    border: 3px solid rgba(212, 175, 55, 0.22);
+    border-top-color: #f2d98a;
+    animation: nikahSpin 1s linear infinite;
+  }
+  #loader p { margin: 0; font-size: 14px; }
+  @keyframes nikahSpin { to { transform: rotate(360deg); } }
+
+  /* ---------- error box ---------- */
+  #errorBox {
+    position: relative;
+    z-index: 60;
+    margin: 14px 20px 0;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: #3a0d10;
+    border: 1px solid #ff6b6b;
+    color: #ffd9d9;
+    font-family: ui-monospace, Menlo, Consolas, 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  }
+
+  /* ---------- header ---------- */
+  .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 20px;
+    background: rgba(4, 20, 15, 0.94);
+    border-bottom: 1px solid rgba(212, 175, 55, 0.28);
+  }
+  .app-header h1 {
+    margin: 0;
+    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #f2d98a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+  }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(212, 175, 55, 0.55);
+    background: transparent;
+    color: #f2d98a;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
+  }
+  .btn:hover { background: rgba(212, 175, 55, 0.14); }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 2px solid #f2d98a; outline-offset: 2px; }
+  .btn-gold {
+    background: linear-gradient(180deg, #f6dd94 0%, #d4af37 100%);
+    color: #08251b;
+    border-color: #d4af37;
+    font-weight: 600;
+  }
+  .btn-gold:hover { background: linear-gradient(180deg, #ffe9ab 0%, #e0bd4c 100%); }
+  .btn-sm { font-size: 11px; padding: 5px 10px; letter-spacing: 0.04em; }
+  .danger { border-color: rgba(255, 107, 107, 0.6); color: #ffb3b3; }
+  .danger:hover { background: rgba(255, 107, 107, 0.14); }
+
+  /* ---------- layout ---------- */
+  .app-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 460px;
+    gap: 24px;
+    align-items: start;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 22px 20px 48px;
+  }
+
+  /* ---------- editor panel ---------- */
+  #editor {
+    background: linear-gradient(180deg, rgba(11, 45, 34, 0.92) 0%, rgba(6, 26, 20, 0.96) 100%);
+    border: 1px solid rgba(212, 175, 55, 0.26);
+    border-radius: 16px;
+    padding: 16px;
+    max-height: calc(100vh - 108px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    box-shadow: 0 18px 46px rgba(0, 0, 0, 0.42);
+  }
+  #editor::-webkit-scrollbar { width: 9px; }
+  #editor::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); border-radius: 9px; }
+  #editor::-webkit-scrollbar-thumb {
+    background: rgba(212, 175, 55, 0.35);
+    border-radius: 9px;
+  }
+
+  .sheet-handle { display: none; }
+  .sheet-grip {
+    width: 46px;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(212, 175, 55, 0.5);
+    margin: 0 auto 12px;
+  }
+
+  /* ---------- tabs ---------- */
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 14px;
+    padding: 0 0 12px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.18);
+  }
+  .tab {
+    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(212, 175, 55, 0.28);
+    background: rgba(255, 255, 255, 0.03);
+    color: #c9d8cf;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+  }
+  .tab:hover { color: #f2d98a; border-color: rgba(212, 175, 55, 0.62); }
+  .tab:focus-visible { outline: 2px solid #f2d98a; outline-offset: 2px; }
+  .tab.active {
+    background: linear-gradient(180deg, #f6dd94 0%, #d4af37 100%);
+    color: #08251b;
+    border-color: #d4af37;
+    font-weight: 600;
+  }
+
+  /* ---------- panels ---------- */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ---------- form controls ---------- */
+  .field { margin-bottom: 12px; }
+  .field > label,
+  .field-label {
+    display: block;
+    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8fb3a3;
+    margin-bottom: 5px;
+  }
+  input[type="text"],
+  input[type="date"],
+  input[type="time"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"],
+  input[type="search"],
+  textarea,
+  select {
+    width: 100%;
+    padding: 9px 11px;
+    border-radius: 9px;
+    border: 1px solid rgba(212, 175, 55, 0.22);
+    background: rgba(2, 16, 11, 0.72);
+    color: #eaf4ee;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 16px;
+    line-height: 1.35;
+  }
+  textarea { min-height: 72px; resize: vertical; }
+  input:hover, textarea:hover, select:hover { border-color: rgba(212, 175, 55, 0.42); }
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: #d4af37;
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.18);
+  }
+  input::placeholder, textarea::placeholder { color: #5f7f70; }
+
+  input[type="file"] {
+    width: 100%;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 14px;
+    color: #b9cdc3;
+    padding: 8px 0;
+  }
+  input[type="file"]::file-selector-button {
+    font-family: 'Reem Kufi', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    padding: 7px 12px;
+    margin-right: 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(212, 175, 55, 0.5);
+    background: rgba(212, 175, 55, 0.12);
+    color: #f2d98a;
+    cursor: pointer;
+  }
+
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #d4af37;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px dashed rgba(212, 175, 55, 0.14);
+  }
+  .switch-row span {
+    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
+    font-size: 12px;
+    color: #c9d8cf;
+  }
+
+  .hint {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: #7fa392;
+    margin: 4px 0 12px;
+  }
+
+  /* ---------- event / repeatable item cards ---------- */
+  .item-card {
+    border: 1px solid rgba(212, 175, 55, 0.22);
+    border-radius: 12px;
+    padding: 10px 11px;
+    margin-bottom: 10px;
+    background: rgba(255, 255, 255, 0.025);
+  }
+  .item-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 9px;
+  }
+  .item-title {
+    flex: 1 1 auto;
+    min-width: 90px;
+    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
+    font-size: 13px;
+    color: #f2d98a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .badge-main {
+    background: linear-gradient(180deg, #f6dd94 0%, #d4af37 100%);
+    color: #08251b;
+    font-family: 'Reem Kufi', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* ---------- theme picker ---------- */
+  .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .theme-btn {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px;
+    border-radius: 11px;
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    background: rgba(255, 255, 255, 0.03);
+    color: #dfeae4;
+    cursor: pointer;
+    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
+    font-size: 12px;
+    text-align: left;
+  }
+  .theme-btn:hover { border-color: rgba(212, 175, 55, 0.6); }
+  .theme-btn:focus-visible { outline: 2px solid #f2d98a; outline-offset: 2px; }
+  .theme-btn.active {
+    border-color: #d4af37;
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.24);
+  }
+  .swatch {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+  }
+
+  /* ---------- photo grid ---------- */
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .photo-cell {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    background: #02100b;
+    aspect-ratio: 1 / 1;
+  }
+  .photo-cell img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .photo-cell .photo-remove {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 22px;
+    height: 22px;
+    line-height: 1;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(20, 4, 6, 0.82);
+    color: #ffd9d9;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .photo-cell .photo-remove:hover { background: #7a1b1b; }
+
+  /* ---------- note + save indicator ---------- */
+  .note {
+    margin: 16px 0 0;
+    padding: 11px 13px;
+    border-left: 3px solid #d4af37;
+    border-radius: 0 10px 10px 0;
+    background: rgba(212, 175, 55, 0.08);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #cfe0d7;
+  }
+  .save-note {
+    margin: 12px 0 0;
+    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.07em;
+    color: #6f9c88;
+    transition: color 0.3s ease;
+  }
+  .save-note.flash { color: #f2d98a; }
+
+  /* ---------- preview / phone ---------- */
+  .preview-wrap {
+    position: sticky;
+    top: 88px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .phone {
+    position: relative;
+    width: 100%;
+    max-width: 390px;
+    height: min(76vh, 800px);
+    padding: 10px;
+    border-radius: 38px;
+    border: 1px solid rgba(212, 175, 55, 0.38);
+    background: #03100c;
+    box-shadow:
+      0 26px 60px rgba(0, 0, 0, 0.55),
+      0 0 0 8px rgba(212, 175, 55, 0.06),
+      0 0 40px rgba(212, 175, 55, 0.08);
+  }
+  #previewFrame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 28px;
+    background: #06231a;
+  }
+  .preview-label {
+    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #6f9c88;
+  }
+
+  /* ---------- mobile edit button + backdrop ---------- */
+  .edit-fab {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 46;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 22px;
+    border-radius: 999px;
+    border: 1px solid #d4af37;
+    background: linear-gradient(180deg, #f6dd94 0%, #d4af37 100%);
+    color: #08251b;
+    font-family: 'Reem Kufi', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.52);
+  }
+  .edit-fab:focus-visible { outline: 2px solid #f2d98a; outline-offset: 3px; }
+
+  .sheet-backdrop {
+    position: fixed;
+    left: 0; top: 0; right: 0; bottom: 0;
+    z-index: 44;
+    background: rgba(0, 0, 0, 0.62);
+  }
+
+  /* ---------- mobile layout (under 800px) ---------- */
+  @media (max-width: 799px) {
+    .app-header { padding: 11px 14px; }
+    .app-header h1 { font-size: 12.5px; letter-spacing: 0.12em; }
+    .btn { font-size: 12px; padding: 8px 13px; }
+
+    .app-main {
+      grid-template-columns: minmax(0, 1fr);
+      padding: 12px 12px 96px;
+      gap: 14px;
     }
 
-    /* ---------- 2. Base reset ---------- */
-    *,
-    *::before,
-    *::after { box-sizing: border-box; }
+    .preview-wrap { position: static; }
+    .phone {
+      max-width: 340px;
+      height: 64vh;
+      min-height: 420px;
+      border-radius: 30px;
+      padding: 8px;
+    }
+    #previewFrame { border-radius: 22px; }
 
-    html { -webkit-text-size-adjust: 100%; }
-
-    html,
-    body { height: 100%; }
-
-    body {
+    /* the editor becomes a bottom sheet */
+    #editor {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: auto;
+      z-index: 45;
+      max-height: 82vh;
+      max-width: none;
       margin: 0;
-      background: var(--ui-bg);
-      color: var(--ui-ink);
-      font-family: "Cormorant Garamond", Georgia, serif;
-      font-size: 1rem;
-      line-height: 1.55;
-      overflow-x: hidden;
-      overscroll-behavior: none;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    h1, h2, h3, p, figure, dl, dd { margin: 0; }
-    img { max-width: 100%; display: block; }
-    button { font: inherit; color: inherit; cursor: pointer; }
-    a { color: var(--ui-gold); text-underline-offset: 3px; }
-
-    /* Clear focus ring for keyboard users. */
-    :focus-visible {
-      outline: 2px solid var(--ui-gold);
-      outline-offset: 3px;
-      border-radius: 8px;
-    }
-
-    /* Text that only screen readers should read. */
-    .sr-only {
-      position: absolute;
-      width: 1px; height: 1px;
-      padding: 0; margin: -1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-      border: 0;
-    }
-
-    code {
-      font-family: ui-monospace, Menlo, Consolas, monospace;
-      font-size: 0.86em;
-      padding: 0.05em 0.35em;
-      border-radius: 5px;
-      background: rgba(0, 0, 0, 0.3);
-      color: var(--ui-gold);
-    }
-
-    /* ---------- 3. Top bar ---------- */
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 80;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.6rem;
-      height: var(--topbar-h);
-      padding: 0 0.75rem;
-      background: linear-gradient(180deg, var(--ui-bg-2), rgba(7, 43, 36, 0.92));
-      border-bottom: 1px solid var(--ui-line);
-      backdrop-filter: blur(10px);
-    }
-
-    .topbar__brand {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      min-width: 0;
-    }
-
-    .topbar__brand svg {
-      width: 22px;
-      height: 22px;
-      flex: 0 0 auto;
-      color: var(--ui-gold);
-      filter: drop-shadow(0 0 8px var(--ui-glow));
-    }
-
-    .topbar__name {
-      font-family: "Reem Kufi", "Cormorant Garamond", sans-serif;
-      font-size: 0.86rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--ui-ink);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .topbar__actions {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      flex: 0 0 auto;
-    }
-
-    /* ---------- 4. Buttons ---------- */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.4rem;
-      min-height: 40px;
-      padding: 0.5rem 0.95rem;
-      border-radius: 999px;
-      border: 1px solid var(--ui-line);
-      background: transparent;
-      color: var(--ui-ink);
-      font-family: "Reem Kufi", "Cormorant Garamond", sans-serif;
-      font-size: 0.66rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      white-space: nowrap;
-      transition: transform 0.2s ease, background 0.2s ease,
-                  border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .btn:hover {
-      transform: translateY(-1px);
-      border-color: var(--ui-gold);
-    }
-
-    .btn:active { transform: translateY(0); }
-
-    .btn:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .btn--gold {
-      background: linear-gradient(150deg, var(--ui-gold-2), var(--ui-gold) 55%, var(--ui-gold-2));
-      border-color: transparent;
-      color: #04211c;
-      font-weight: 600;
-      box-shadow: 0 10px 26px rgba(230, 194, 126, 0.22);
-    }
-
-    .btn--gold:hover { box-shadow: 0 14px 34px rgba(230, 194, 126, 0.32); }
-
-    .btn--ghost { color: var(--ui-ink-soft); }
-    .btn--ghost:hover { color: var(--ui-ink); }
-
-    /* Small screens: keep the top bar from overflowing. */
-    @media (max-width: 430px) {
-      .topbar__name { display: none; }
-      .btn { padding: 0.5rem 0.8rem; font-size: 0.6rem; }
-    }
-
-    /* ---------- 5. Workspace (editor + preview) ---------- */
-    .workspace {
-      display: grid;
-      grid-template-columns: 1fr;
-      min-height: calc(100svh - var(--topbar-h));
-    }
-
-    /* Preview fills the phone screen under the top bar. */
-    .preview {
-      position: fixed;
-      left: 0;
-      right: 0;
-      top: var(--topbar-h);
-      bottom: 0;
-      background: #02120f;
-      overflow: hidden;
-    }
-
-    .preview__frame {
-      display: block;
-      width: 100%;
-      height: 100%;
-      border: 0;
-      background: #04211c;
-    }
-
-    /* Friendly "preparing" overlay until the first render lands. */
-    .preview__loading {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-content: center;
-      justify-items: center;
-      gap: 0.8rem;
-      background: radial-gradient(circle at 50% 40%, #0a342c 0%, #02120f 70%);
-      color: var(--ui-ink-soft);
-      font-family: "Reem Kufi", sans-serif;
-      font-size: 0.7rem;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      text-align: center;
-      padding: 1rem;
-      transition: opacity 0.4s ease, visibility 0.4s ease;
-    }
-
-    .preview__loading.is-hidden {
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-    }
-
-    .preview__spinner {
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      border: 2px solid var(--ui-line);
-      border-top-color: var(--ui-gold);
-      animation: uiSpin 0.9s linear infinite;
-    }
-
-    @keyframes uiSpin {
-      to { transform: rotate(360deg); }
-    }
-
-    /* ---------- 6. Editor panel ---------- */
-    /* Phone: slides up as a bottom sheet. */
-    .editor {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 70;
-      display: flex;
-      flex-direction: column;
-      height: 88svh;
-      max-height: 88svh;
-      background: var(--ui-bg-2);
-      border-top: 1px solid var(--ui-line);
       border-radius: 18px 18px 0 0;
-      box-shadow: 0 -22px 60px rgba(0, 0, 0, 0.6);
-      transform: translateY(102%);
-      transition: transform 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+      border-left: 0;
+      border-right: 0;
+      border-bottom: 0;
+      padding: 12px 14px 26px;
+      box-shadow: 0 -22px 54px rgba(0, 0, 0, 0.66);
+      transform: translateY(105%);
+      transition: transform 0.28s ease;
     }
-
-    .editor.is-open { transform: translateY(0); }
-
-    /* Grab handle on the mobile sheet. */
-    .editor::before {
-      content: "";
-      flex: 0 0 auto;
-      width: 42px;
-      height: 4px;
-      margin: 8px auto 2px;
-      border-radius: 4px;
-      background: var(--ui-line);
-    }
-
-    .editor__head {
-      flex: 0 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.6rem;
-      padding: 0.35rem 1rem 0.65rem;
-      border-bottom: 1px solid var(--ui-line);
-    }
-
-    .editor__title {
-      font-family: "Great Vibes", cursive;
-      font-size: 1.55rem;
-      line-height: 1;
-      color: var(--ui-gold);
-    }
-
-    .editor__close {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      border: 1px solid var(--ui-line);
-      background: transparent;
-      color: var(--ui-ink);
-      font-size: 1.15rem;
-      line-height: 1;
-      flex: 0 0 auto;
-    }
-
-    .editor__close:hover { border-color: var(--ui-gold); }
-
-    /* "How to use" note. */
-    .ed-note {
-      flex: 0 0 auto;
-      margin: 0.7rem 1rem 0;
-      padding: 0.7rem 0.85rem;
-      border: 1px dashed var(--ui-line);
-      border-radius: 12px;
-      background: var(--ui-panel-2);
-      color: var(--ui-ink-soft);
-      font-size: 0.84rem;
-      line-height: 1.5;
-    }
-
-    .ed-note strong { color: var(--ui-gold); font-weight: 600; }
-
-    /* Horizontal tab strip. */
-    .ed-tabs {
-      flex: 0 0 auto;
-      display: flex;
-      gap: 0.35rem;
-      padding: 0.7rem 1rem;
-      overflow-x: auto;
-      scrollbar-width: none;
-      border-bottom: 1px solid var(--ui-line);
-    }
-
-    .ed-tabs::-webkit-scrollbar { display: none; }
-
-    .ed-tab {
-      flex: 0 0 auto;
-      min-height: 36px;
-      padding: 0.35rem 0.85rem;
-      border-radius: 999px;
-      border: 1px solid var(--ui-line);
-      background: transparent;
-      color: var(--ui-ink-soft);
-      font-family: "Reem Kufi", sans-serif;
-      font-size: 0.58rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-    }
-
-    .ed-tab:hover { color: var(--ui-ink); border-color: var(--ui-gold); }
-
-    .ed-tab[aria-selected="true"] {
-      background: linear-gradient(150deg, var(--ui-gold-2), var(--ui-gold));
-      border-color: transparent;
-      color: #04211c;
-      font-weight: 600;
-    }
-
-    /* Scrollable form area. */
-    .editor__body {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      padding: 0.9rem 1rem 1.2rem;
-    }
-
-    .editor__foot {
-      flex: 0 0 auto;
-      padding: 0.7rem 1rem calc(0.8rem + env(safe-area-inset-bottom, 0px));
-      border-top: 1px solid var(--ui-line);
-      background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.22));
-    }
-
-    .editor__status {
-      font-family: "Reem Kufi", sans-serif;
-      font-size: 0.56rem;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--ui-ink-soft);
-      text-align: center;
-    }
-
-    .editor__status.is-error { color: var(--ui-danger); }
-
-    /* ---------- 7. Editor form widgets (used by builder.js) ---------- */
-    .ed-panel {
-      display: grid;
-      gap: 0.85rem;
-      align-content: start;
-    }
-
-    .ed-panel[hidden] { display: none; }
-
-    .ed-field {
-      display: grid;
-      gap: 0.3rem;
-    }
-
-    .ed-label {
-      font-family: "Reem Kufi", sans-serif;
-      font-size: 0.56rem;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--ui-gold);
-    }
-
-    .ed-input,
-    .ed-textarea,
-    .ed-select {
-      width: 100%;
-      padding: 0.6rem 0.75rem;
-      border-radius: 10px;
-      border: 1px solid var(--ui-line);
-      background: rgba(0, 0, 0, 0.22);
-      color: var(--ui-ink);
-      font-family: "Cormorant Garamond", Georgia, serif;
-      font-size: 1rem;
-      line-height: 1.4;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .ed-input::placeholder,
-    .ed-textarea::placeholder { color: rgba(243, 239, 225, 0.35); }
-
-    .ed-input:focus,
-    .ed-textarea:focus,
-    .ed-select:focus {
-      outline: none;
-      border-color: var(--ui-gold);
-      box-shadow: 0 0 0 3px var(--ui-glow);
-    }
-
-    .ed-textarea {
-      min-height: 84px;
-      resize: vertical;
-    }
-
-    .ed-select {
-      appearance: none;
-      -webkit-appearance: none;
-      padding-right: 2.2rem;
-      background-image:
-        linear-gradient(45deg, transparent 50%, var(--ui-gold) 50%),
-        linear-gradient(135deg, var(--ui-gold) 50%, transparent 50%);
-      background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
-      background-size: 6px 6px, 6px 6px;
-      background-repeat: no-repeat;
-    }
-
-    .ed-row {
-      display: grid;
-      gap: 0.7rem;
-      grid-template-columns: 1fr;
-    }
-
-    @media (min-width: 420px) {
-      .ed-row { grid-template-columns: 1fr 1fr; }
-    }
-
-    .ed-divider {
-      height: 1px;
-      background: var(--ui-line);
-      margin: 0.2rem 0;
-    }
-
-    .ed-help {
-      font-size: 0.8rem;
-      line-height: 1.45;
-      color: var(--ui-ink-soft);
-    }
-
-    .ed-empty {
-      padding: 0.9rem;
-      border: 1px dashed var(--ui-line);
-      border-radius: 12px;
-      color: var(--ui-ink-soft);
-      font-size: 0.88rem;
-      text-align: center;
-    }
-
-    .ed-warn {
-      font-size: 0.8rem;
-      line-height: 1.45;
-      color: var(--ui-danger);
-    }
-
-    .ed-media-name {
-      font-size: 0.82rem;
-      line-height: 1.45;
-      color: var(--ui-ink-soft);
-      overflow-wrap: anywhere;
-    }
-
-    /* Buttons inside the editor. */
-    .ed-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.45rem;
-    }
-
-    .ed-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.35rem;
-      min-height: 38px;
-      padding: 0.42rem 0.85rem;
-      border-radius: 9px;
-      border: 1px solid var(--ui-line);
-      background: transparent;
-      color: var(--ui-ink);
-      font-family: "Reem Kufi", sans-serif;
-      font-size: 0.56rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-    }
-
-    .ed-btn:hover { border-color: var(--ui-gold); }
-
-    .ed-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .ed-btn--gold {
-      background: linear-gradient(150deg, var(--ui-gold-2), var(--ui-gold));
-      border-color: transparent;
-      color: #04211c;
-      font-weight: 600;
-    }
-
-    .ed-btn--danger {
-      border-color: rgba(255, 155, 155, 0.5);
-      color: var(--ui-danger);
-    }
-
-    .ed-btn--wide { width: 100%; }
-
-    /* File picker styled as a button. */
-    .ed-file {
-      position: relative;
-      overflow: hidden;
-      display: inline-flex;
-    }
-
-    .ed-file input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
-      font-size: 100px;
-    }
-
-    /* Checkbox row. */
-    .ed-check {
-      display: flex;
-      align-items: center;
-      gap: 0.55rem;
-      min-height: 38px;
-      font-size: 0.95rem;
-      color: var(--ui-ink);
-    }
-
-    .ed-check input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      flex: 0 0 auto;
-      accent-color: #bf9546;
-    }
-
-    /* Collapsible event block. */
-    .ed-event {
-      border: 1px solid var(--ui-line);
-      border-radius: 12px;
-      background: var(--ui-panel-2);
-      overflow: hidden;
-    }
-
-    .ed-event > summary {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.6rem;
-      padding: 0.7rem 0.85rem;
-      cursor: pointer;
-      list-style: none;
-      font-family: "Reem Kufi", sans-serif;
-      font-size: 0.6rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--ui-ink);
-    }
-
-    .ed-event > summary::-webkit-details-marker { display: none; }
-
-    .ed-event > summary::after {
-      content: "+";
-      color: var(--ui-gold);
-      font-size: 1rem;
-      line-height: 1;
-    }
-
-    .ed-event[open] > summary::after { content: "–"; }
-
-    .ed-event__flag {
-      font-family: "Reem Kufi", sans-serif;
-      font-size: 0.5rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: #04211c;
-      background: var(--ui-gold);
-      border-radius: 999px;
-      padding: 0.1rem 0.45rem;
-    }
-
-    .ed-event__body {
-      display: grid;
-      gap: 0.7rem;
-      padding: 0.8rem 0.85rem 0.9rem;
-      border-top: 1px solid var(--ui-line);
-    }
-
-    /* Photo thumbnails. */
-    .ed-thumbs {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
-      gap: 0.45rem;
-    }
-
-    .ed-thumb {
-      position: relative;
-      aspect-ratio: 1;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid var(--ui-line);
-      background: rgba(0, 0, 0, 0.25);
-    }
-
-    .ed-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .ed-thumb button {
-      position: absolute;
-      top: 3px;
-      right: 3px;
-      display: grid;
-      place-items: center;
-      width: 22px;
-      height: 22px;
-      border: 0;
-      border-radius: 50%;
-      background: rgba(0, 0, 0, 0.72);
-      color: #fff;
-      font-size: 0.8rem;
-      line-height: 1;
-    }
-
-    /* Theme swatches. */
-    .ed-themes {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 0.55rem;
-    }
-
-    @media (min-width: 420px) {
-      .ed-themes { grid-template-columns: repeat(4, 1fr); }
-    }
-
-    .ed-swatch {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.55rem 0.6rem;
-      border-radius: 10px;
-      border: 1px solid var(--ui-line);
-      background: transparent;
-      color: var(--ui-ink);
-      font-family: "Reem Kufi", sans-serif;
-      font-size: 0.52rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      text-align: left;
-    }
-
-    .ed-swatch:hover { border-color: var(--ui-gold); }
-
-    .ed-swatch[aria-pressed="true"] {
-      border-color: var(--ui-gold);
-      box-shadow: 0 0 0 2px var(--ui-glow);
-    }
-
-    .ed-swatch__dot {
-      width: 18px;
-      height: 18px;
-      flex: 0 0 auto;
-      border-radius: 50%;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-    }
-
-    /* Preview dots for the four card themes. */
-    .ed-swatch__dot--emerald   { background: linear-gradient(135deg, #0a3b31, #e6c27e); }
-    .ed-swatch__dot--midnight  { background: linear-gradient(135deg, #101a3a, #e8cf94); }
-    .ed-swatch__dot--ivory-sage{ background: linear-gradient(135deg, #f4f0e3, #8a9a7b); }
-    .ed-swatch__dot--rose-gold { background: linear-gradient(135deg, #f6dfd8, #b76e79); }
-
-    /* ---------- 8. Scrim, FAB and toast ---------- */
-    .scrim {
-      position: fixed;
-      inset: 0;
-      z-index: 65;
-      background: rgba(0, 0, 0, 0.55);
-      backdrop-filter: blur(2px);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.35s ease;
-    }
-
-    .scrim.is-open {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    /* Floating "Edit Card" button — mobile only. */
-    .edit-fab {
-      position: fixed;
-      left: 14px;
-      bottom: 14px;
-      z-index: 60;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      min-height: 46px;
-      padding: 0.6rem 1.15rem;
-      border: 1px solid transparent;
-      border-radius: 999px;
-      background: linear-gradient(150deg, var(--ui-gold-2), var(--ui-gold));
-      color: #04211c;
-      font-family: "Reem Kufi", sans-serif;
-      font-size: 0.62rem;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      font-weight: 600;
-      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .edit-fab:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
-    }
-
-    .edit-fab svg {
-      width: 16px;
-      height: 16px;
-      flex: 0 0 auto;
-    }
-
-    /* Small message bubble ("Link copied", "Draft cleared"…). */
-    .toast {
-      position: fixed;
-      left: 50%;
-      bottom: 84px;
-      z-index: 120;
-      max-width: min(88vw, 340px);
-      padding: 0.65rem 1.1rem;
-      border: 1px solid var(--ui-line);
-      border-radius: 999px;
-      background: var(--ui-panel);
-      color: var(--ui-ink);
-      font-family: "Reem Kufi", sans-serif;
-      font-size: 0.62rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      text-align: center;
-      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
-      opacity: 0;
-      transform: translate(-50%, 16px);
-      pointer-events: none;
-      transition: opacity 0.3s ease, transform 0.3s ease;
-    }
-
-    .toast.is-visible {
-      opacity: 1;
-      transform: translate(-50%, 0);
-    }
-
-    /* ---------- 9. Desktop layout ---------- */
-    @media (min-width: 900px) {
-      /* Editor becomes a permanent left column. */
-      .editor {
-        position: static;
-        z-index: auto;
-        height: calc(100svh - var(--topbar-h));
-        max-height: none;
-        border-radius: 0;
-        border-top: 0;
-        border-right: 1px solid var(--ui-line);
-        box-shadow: none;
-        transform: none;
-      }
-
-      .editor::before { display: none; }
-
-      .editor__head { padding-top: 1rem; }
-
-      .editor__close { display: none; }
-
-      .workspace {
-        grid-template-columns: minmax(330px, 400px) 1fr;
-        align-items: start;
-      }
-
-      /* Preview takes the remaining space and stays in view. */
-      .preview {
-        position: sticky;
-        top: var(--topbar-h);
-        left: auto;
-        right: auto;
-        bottom: auto;
-        height: calc(100svh - var(--topbar-h));
-      }
-
-      .scrim { display: none !important; }
-      .edit-fab { display: none; }
-    }
-
-    /* Lock the page scroll only while the mobile sheet is open. */
-    @media (max-width: 899px) {
-      body.editor-open { overflow: hidden; }
-    }
-
-    /* ---------- 10. Reduced motion ---------- */
-    @media (prefers-reduced-motion: reduce) {
-      *,
-      *::before,
-      *::after {
-        animation-duration: 0.001ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.001ms !important;
-      }
-    }
-  </style>
+    #editor.open { transform: translateY(0); }
+
+    .sheet-handle { display: block; }
+    .edit-fab { display: inline-flex; }
+
+    .row2 { grid-template-columns: 1fr; }
+    .theme-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 380px) {
+    .theme-grid { grid-template-columns: 1fr; }
+    .photo-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+
+  /* respect users who dislike motion */
+  @media (prefers-reduced-motion: reduce) {
+    .loader-ring { animation: none; }
+    #editor { transition: none; }
+  }
+</style>
 </head>
 
 <body>
-  <!-- ============================================================
-       TOP BAR
-       Download builds the single-file card, Reset restores the sample.
-       Both are wired up in builder.js.
-       ============================================================ -->
-  <header class="topbar">
-    <div class="topbar__brand">
-      <!-- Small crescent mark, drawn inline so there are no image files. -->
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          d="M15.5 3a9 9 0 1 0 5.2 15.6A9.6 9.6 0 0 1 15.5 3z"
-          fill="currentColor"
-        />
-        <path
-          d="M19.4 5.6l.55 1.35 1.35.55-1.35.55-.55 1.35-.55-1.35-1.35-.55 1.35-.55z"
-          fill="currentColor"
-        />
-      </svg>
-      <span class="topbar__name">Nikah Card Builder</span>
+
+<!-- Full screen loading state, hidden by builder.js in a finally block -->
+<div id="loader" role="status" aria-live="polite">
+  <div class="loader-ring" aria-hidden="true"></div>
+  <p>Preparing your card...</p>
+</div>
+
+<!-- Errors (missing files, runtime problems) are printed here -->
+<div id="errorBox" role="alert" hidden></div>
+
+<header class="app-header">
+  <h1>Nikah Card Builder</h1>
+  <div class="header-actions">
+    <button id="resetBtn" class="btn" type="button" aria-label="Reset the card and clear the draft">Reset</button>
+    <button id="downloadBtn" class="btn btn-gold" type="button" aria-label="Download the finished card as an HTML file">Download Card</button>
+  </div>
+</header>
+
+<main class="app-main">
+
+  <!-- LEFT: the editor. builder.js fills every panel. -->
+  <section id="editor" aria-label="Card editor">
+    <div class="sheet-handle" aria-hidden="true">
+      <div class="sheet-grip"></div>
     </div>
 
-    <div class="topbar__actions">
-      <button id="resetBtn" class="btn btn--ghost" type="button">
-        Reset
-      </button>
-      <button id="downloadBtn" class="btn btn--gold" type="button">
-        Download Card
-      </button>
+    <div class="tabs" id="tabs" role="tablist" aria-label="Editor sections">
+      <button class="tab active" type="button" role="tab" id="tab-basic" data-tab="basic"
+              aria-selected="true" aria-controls="panel-basic">Basic</button>
+      <button class="tab" type="button" role="tab" id="tab-events" data-tab="events"
+              aria-selected="false" aria-controls="panel-events">Events</button>
+      <button class="tab" type="button" role="tab" id="tab-story" data-tab="story"
+              aria-selected="false" aria-controls="panel-story">Story &amp; Photos</button>
+      <button class="tab" type="button" role="tab" id="tab-music" data-tab="music"
+              aria-selected="false" aria-controls="panel-music">Music</button>
+      <button class="tab" type="button" role="tab" id="tab-rsvp" data-tab="rsvp"
+              aria-selected="false" aria-controls="panel-rsvp">Contacts &amp; RSVP</button>
+      <button class="tab" type="button" role="tab" id="tab-theme" data-tab="theme"
+              aria-selected="false" aria-controls="panel-theme">Theme</button>
     </div>
-  </header>
 
-  <!-- ============================================================
-       WORKSPACE
-       On phones the preview fills the screen and the editor slides up
-       as a sheet. On desktop they sit side by side.
-       ============================================================ -->
-  <main class="workspace">
+    <div class="panels" id="panels">
+      <div class="panel active" id="panel-basic" data-panel="basic" role="tabpanel"
+           aria-labelledby="tab-basic" tabindex="0"></div>
+      <div class="panel" id="panel-events" data-panel="events" role="tabpanel"
+           aria-labelledby="tab-events" tabindex="0"></div>
+      <div class="panel" id="panel-story" data-panel="story" role="tabpanel"
+           aria-labelledby="tab-story" tabindex="0"></div>
+      <div class="panel" id="panel-music" data-panel="music" role="tabpanel"
+           aria-labelledby="tab-music" tabindex="0"></div>
+      <div class="panel" id="panel-rsvp" data-panel="rsvp" role="tabpanel"
+           aria-labelledby="tab-rsvp" tabindex="0"></div>
+      <div class="panel" id="panel-theme" data-panel="theme" role="tabpanel"
+           aria-labelledby="tab-theme" tabindex="0"></div>
+    </div>
 
-    <!-- EDITOR PANEL — builder.js fills #editorTabs and #editorBody. -->
-    <aside id="editorPanel" class="editor" aria-label="Card editor">
-      <div class="editor__head">
-        <p class="editor__title">Edit Card</p>
-        <button
-          id="editorClose"
-          class="editor__close"
-          type="button"
-          aria-label="Close editor"
-        >×</button>
-      </div>
+    <p class="note" id="deployNote">
+      Download, put the file in a folder as index.html, drag the folder to Netlify Drop
+      (app.netlify.com/drop), share the link.
+    </p>
 
-      <!-- Short "how to use" note, exactly as requested. -->
-      <p class="ed-note">
-        <strong>How to use:</strong> Download, put the file in a folder as
-        <code>index.html</code>, drag the folder to
-        <a href="https://app.netlify.com/drop" target="_blank" rel="noopener noreferrer">Netlify Drop</a>,
-        and share the link.
-      </p>
+    <p class="save-note" id="saveNote">Draft saved automatically</p>
+  </section>
 
-      <!-- Tab strip (Basic, Events, Story and Photos, Music, Contacts and RSVP, Theme). -->
-      <nav
-        id="editorTabs"
-        class="ed-tabs"
-        role="tablist"
-        aria-label="Editor sections"
-      ></nav>
+  <!-- RIGHT: the live preview inside a phone shaped frame -->
+  <section class="preview-wrap" aria-label="Live preview">
+    <div class="phone">
+      <iframe id="previewFrame"
+              title="Live preview of the Nikah card"
+              sandbox="allow-scripts allow-modals"></iframe>
+    </div>
+    <p class="preview-label">Live preview</p>
+  </section>
 
-      <!-- Scrollable form area. -->
-      <div id="editorBody" class="editor__body"></div>
+</main>
 
-      <!-- Live status line: "Draft saved", "Downloaded", errors… -->
-      <div id="editorFoot" class="editor__foot">
-        <p id="editorStatus" class="editor__status" role="status" aria-live="polite">
-          Draft saved automatically
-        </p>
-      </div>
-    </aside>
+<!-- Mobile: opens the bottom sheet editor -->
+<button id="editBtn" class="edit-fab" type="button" aria-label="Open the card editor">
+  Edit
+</button>
+<div id="sheetBackdrop" class="sheet-backdrop" hidden></div>
 
-    <!-- PREVIEW — a sandboxed iframe that receives the full card document. -->
-    <section class="preview" aria-label="Live card preview">
-      <iframe
-        id="previewFrame"
-        class="preview__frame"
-        title="Live preview of your Nikah invitation card"
-        sandbox="allow-scripts"
-        referrerpolicy="no-referrer"
-      ></iframe>
+<noscript>
+  <p style="padding:20px;color:#ffd9d9;font-family:monospace;">
+    This builder needs JavaScript enabled.
+  </p>
+</noscript>
 
-      <div id="previewLoading" class="preview__loading">
-        <span class="preview__spinner" aria-hidden="true"></span>
-        <span>Preparing your card…</span>
-      </div>
-    </section>
-  </main>
+<!-- Load order matters: style, runtime, data/builder of the card, then the editor -->
+<script src="card-style.js"></script>
+<script src="card-runtime.js"></script>
+<script src="card.js"></script>
+<script src="builder.js"></script>
 
-  <!-- Dark layer behind the mobile bottom sheet. -->
-  <div id="editorScrim" class="scrim" aria-hidden="true"></div>
-
-  <!-- Floating "Edit Card" button, phones only. -->
-  <button id="editFab" class="edit-fab" type="button" aria-label="Open the card editor">
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        fill="currentColor"
-        d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.33-2.34a1 1 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-      />
-    </svg>
-    Edit Card
-  </button>
-
-  <!-- Small toast for short messages. -->
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
-  <!-- card.js first: it defines window.DEFAULT_CARD and window.buildCardHTML.
-       builder.js second: it uses both. Both are deferred, so the order holds. -->
-  <script src="card.js" defer></script>
-  <script src="builder.js" defer></script>
 </body>
 </html>
+<!-- END OF FILE index.html -->
