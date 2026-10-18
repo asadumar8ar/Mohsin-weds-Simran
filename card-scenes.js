@@ -1,943 +1,704 @@
-// card-scenes.js — Mehraab Corridor, Scratch, gold-light sweep, quiet reveals,
-// programme parchment, tilt and flip, gallery, calendar .ics, RSVP, share.
-// This function is injected into the exported standalone HTML via toString().
-// It must be fully self-contained (no references to outer variables).
-window.CARD_LOADED_SCENES = true;
+/* card-scenes.js — scene animations injected into the exported card. */
+"use strict";
+(function () {
+  window.CARD_LOADED_SCENES = true;
 
-window.cardRuntimeScenes = function (DATA) {
-  "use strict";
+  window.cardRuntimeScenes = function (DATA) {
+    "use strict";
 
-  var card = window.__card || { opened: false, reduced: false, onOpen: function (cb) { try { cb(); } catch (e) {} } };
-  var reduced = !!card.reduced;
+    var card = window.__card || {
+      opened: false, safe: false, reduced: false,
+      onOpen: function (cb) { setTimeout(cb, 0); }
+    };
+    var SAFE = !!card.safe;
+    var REDUCED = !!card.reduced;
+    var NO_MOTION = SAFE || REDUCED;
 
-  function $(sel, root) { return (root || document).querySelector(sel); }
-  function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
-  function on(el, ev, fn, opts) { if (el) el.addEventListener(ev, fn, opts || false); }
-  function attempt(fn) { try { fn(); } catch (e) {} }
-  function clampi(v, a, b) { return v < a ? a : (v > b ? b : v); }
-
-  // ==========================================================
-  // MEHRAAB CORRIDOR — scroll-driven fly-through.
-  // ==========================================================
-  function setupCorridor() {
-    var stage = document.getElementById("stage");
-    var stageInner = document.getElementById("stageInner");
-    if (!stage || !stageInner) return;
-
-    var arches = $all(".arch", stageInner);
-    if (!arches.length) return;
-
-    var total = arches.length;
-
-    // Fallback: stacked layout for reduced motion or very short screens.
-    if (reduced || window.innerHeight < 480) {
-      enableCorridorFallback(stage, stageInner, arches);
-      return;
+    function $(s, r) { return (r || document).querySelector(s); }
+    function $$(s, r) {
+      var l = (r || document).querySelectorAll(s);
+      var o = []; for (var i = 0; i < l.length; i++) o.push(l[i]); return o;
     }
-
-    // Each arch gets a Z depth; closer arches are further from camera.
-    var depths = [];
-    for (var i = 0; i < total; i++) {
-      // 0 = furthest, total-1 = closest (deepest negative Z).
-      depths.push(-(total - 1 - i) * 320);
-    }
-
-    // Active content index (0..total-1). Each arch holds one content block.
-    var currentActive = -1;
-
-    // Scrolling progress driven by stage's position in viewport.
-    function computeProgress() {
-      var rect = stage.getBoundingClientRect();
-      var vh = window.innerHeight;
-      var scrollable = stage.offsetHeight - vh;
-      if (scrollable <= 0) return 0;
-      // We want progress 0 when stage top hits viewport top, 1 when stage bottom hits viewport bottom.
-      var traveled = -rect.top;
-      return clampi(traveled / scrollable, 0, 1);
-    }
-
-    var raf = 0;
-    var lastProgress = -1;
-
-    function update() {
-      raf = 0;
-      var p = computeProgress();
-      if (Math.abs(p - lastProgress) < 0.001) return;
-      lastProgress = p;
-
-      // Camera zooms from Z=0 toward Z=2000 as progress grows.
-      var camZ = p * (total * 320 + 300);
-
-      // The active arch is the one nearest the camera front.
-      var activeIdx = -1;
-      var bestDist = Infinity;
-
-      for (var i = 0; i < total; i++) {
-        var z = depths[i] + camZ; // negative means in front of camera
-        var dist = -z;
-        var arch = arches[i];
-        // Visibility: fade in near the front, blur/scale away once passed.
-        var opacity = 0;
-        var scale = 1;
-        var blur = 0;
-        var translateY = 0;
-        if (dist > -400 && dist < 2600) {
-          // Map dist: -400 → near (passed), 0 → perfect, 2600 → far away.
-          if (dist < 0) {
-            // Passed the camera: fade quickly.
-            var t = clampi((dist + 400) / 400, 0, 1); // 0 at -400, 1 at 0
-            opacity = t * 0.9;
-            scale = 0.6 + 0.4 * t;
-            blur = (1 - t) * 8;
-            translateY = (1 - t) * -30;
-          } else {
-            // Ahead of the camera: fade in from far away.
-            var u = clampi(dist / 2600, 0, 1); // 0 near, 1 far
-            opacity = (1 - u) * 0.95;
-            if (u > 0.85) opacity = (1 - u) / 0.15 * 0.6;
-            scale = 1.15 - 0.15 * (1 - u);
-            blur = u * 6;
-            translateY = (1 - u) * 20;
-          }
-          if (opacity < 0) opacity = 0;
-          if (opacity > 1) opacity = 1;
-        }
-        arch.style.opacity = opacity.toFixed(3);
-        arch.style.transform = "translateZ(" + z.toFixed(1) + "px) translateY(" + translateY.toFixed(1) + "px) scale(" + scale.toFixed(3) + ")";
-        arch.style.filter = blur > 0.1 ? "blur(" + blur.toFixed(2) + "px)" : "none";
-
-        // Track which arch is closest to the "sweet spot".
-        if (dist > 100 && dist < 1500 && Math.abs(dist - 400) < bestDist) {
-          bestDist = Math.abs(dist - 400);
-          activeIdx = i;
-        }
-      }
-
-      // Bloom on arch change.
-      if (activeIdx !== -1 && activeIdx !== currentActive) {
-        currentActive = activeIdx;
-        bloomAt(activeIdx);
-        // Add "passed" class to fully revealed arches (for ink-writing).
-        for (var j = 0; j < total; j++) {
-          if (j <= activeIdx) arches[j].classList.add("passed");
-        }
-      }
-    }
-
-    function bloomAt(idx) {
-      if (idx < 0 || idx >= arches.length) return;
-      if (reduced) return;
-      var arch = arches[idx];
-      var bloom = arch.querySelector(".arch-bloom");
-      if (!bloom) {
-        bloom = document.createElement("div");
-        bloom.className = "arch-bloom";
-        arch.appendChild(bloom);
-      }
-      bloom.style.animation = "none";
-      void bloom.offsetWidth;
-      bloom.style.animation = "archBloom 1400ms ease-out";
-    }
-
-    function onScroll() {
-      if (raf) return;
-      raf = requestAnimationFrame(update);
-    }
-
-    on(window, "scroll", onScroll, { passive: true });
-    on(window, "resize", function () {
-      lastProgress = -1;
-      onScroll();
-    });
-
-    // Run once.
-    update();
-  }
-
-  function enableCorridorFallback(stage, stageInner, arches) {
-    // Replace the sticky corridor with a simple stacked view.
-    stage.style.height = "auto";
-    stageInner.style.position = "relative";
-    stageInner.style.height = "auto";
-    stageInner.style.perspective = "none";
-    stageInner.style.overflow = "visible";
-    // Give the arches a simple stacked layout.
-    for (var i = 0; i < arches.length; i++) {
-      var a = arches[i];
-      a.style.position = "relative";
-      a.style.top = "auto";
-      a.style.left = "auto";
-      a.style.margin = "28px auto";
-      a.style.width = "min(90vw,520px)";
-      a.style.height = "auto";
-      a.style.minHeight = "360px";
-      a.style.opacity = "1";
-      a.style.transform = "none";
-      a.style.filter = "none";
-      a.classList.add("passed");
-    }
-    // Hide the stage height so page flows naturally.
-    stage.style.background = "var(--plum)";
-    stage.style.padding = "40px 0";
-  }
-
-  // ==========================================================
-  // SCRATCH TO REVEAL
-  // ==========================================================
-  function setupScratch() {
-    var wrap = document.getElementById("scratchWrap");
-    var canvas = document.getElementById("scratchCanvas");
-    var revealBtn = document.getElementById("revealBtn");
-    var content = document.getElementById("scratchContent");
-    if (!canvas || !content) return;
-
-    var ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    var cssW = 0, cssH = 0;
-    var drawing = false;
-    var lastPt = null;
-    var cleared = 0;
-    var totalPixels = 0;
-    var autoRevealed = false;
-    var lastSparkle = 0;
-
-    function sizeCanvas() {
-      var rect = canvas.getBoundingClientRect();
-      cssW = Math.max(1, Math.floor(rect.width));
-      cssH = Math.max(1, Math.floor(rect.height));
-      canvas.width = Math.floor(cssW * dpr);
-      canvas.height = Math.floor(cssH * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      paintFoil();
-      totalPixels = cssW * cssH;
-    }
-
-    function paintFoil() {
-      // Gold foil gradient.
-      var grad = ctx.createLinearGradient(0, 0, cssW, cssH);
-      grad.addColorStop(0, "#E8C86A");
-      grad.addColorStop(0.25, "#F5DF9E");
-      grad.addColorStop(0.5, "#C9A24B");
-      grad.addColorStop(0.75, "#F0D58A");
-      grad.addColorStop(1, "#B08A3A");
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, cssW, cssH);
-
-      // Fine glitter.
-      ctx.save();
-      for (var i = 0; i < 240; i++) {
-        var x = Math.random() * cssW;
-        var y = Math.random() * cssH;
-        var r = Math.random() * 1.4 + 0.3;
-        ctx.globalAlpha = Math.random() * 0.6 + 0.25;
-        ctx.fillStyle = Math.random() < 0.5 ? "#FFF6D5" : "#8A6E32";
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
-
-      // Soft diagonal sheen.
-      ctx.save();
-      ctx.globalCompositeOperation = "screen";
-      var sheen = ctx.createLinearGradient(0, 0, cssW, 0);
-      sheen.addColorStop(0, "rgba(255,255,255,0)");
-      sheen.addColorStop(0.5, "rgba(255,255,255,0.35)");
-      sheen.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.fillStyle = sheen;
-      ctx.fillRect(0, 0, cssW, cssH);
-      ctx.restore();
-
-      // Reset counter.
-      cleared = 0;
-      autoRevealed = false;
-    }
-
-    function getPoint(evt) {
-      var rect = canvas.getBoundingClientRect();
-      var x, y;
-      if (evt.touches && evt.touches.length) {
-        x = evt.touches[0].clientX - rect.left;
-        y = evt.touches[0].clientY - rect.top;
-      } else if (evt.changedTouches && evt.changedTouches.length) {
-        x = evt.changedTouches[0].clientX - rect.left;
-        y = evt.changedTouches[0].clientY - rect.top;
-      } else {
-        x = evt.clientX - rect.left;
-        y = evt.clientY - rect.top;
-      }
-      return { x: x, y: y };
-    }
-
-    function eraseAt(x, y) {
-      ctx.save();
-      ctx.globalCompositeOperation = "destination-out";
-      var brush = 34;
-      var grad = ctx.createRadialGradient(x, y, 0, x, y, brush);
-      grad.addColorStop(0, "rgba(0,0,0,1)");
-      grad.addColorStop(0.6, "rgba(0,0,0,1)");
-      grad.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(x, y, brush, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    function eraseLine(a, b) {
-      if (!a) { eraseAt(b.x, b.y); return; }
-      var dx = b.x - a.x;
-      var dy = b.y - a.y;
-      var dist = Math.sqrt(dx * dx + dy * dy);
-      var steps = Math.max(1, Math.floor(dist / 6));
-      for (var i = 0; i <= steps; i++) {
-        var t = i / steps;
-        eraseAt(a.x + dx * t, a.y + dy * t);
-      }
-    }
-
-    function measureCleared() {
-      // Sample pixels to estimate cleared fraction (cheap).
-      var step = 12;
-      var clearedSamples = 0;
-      var totalSamples = 0;
-      try {
-        var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        var d = img.data;
-        var w = canvas.width;
-        for (var y = 0; y < canvas.height; y += step * dpr) {
-          for (var x = 0; x < w; x += step * dpr) {
-            var idx = (y * w + x) * 4;
-            totalSamples++;
-            if (d[idx + 3] < 80) clearedSamples++;
-          }
-        }
-      } catch (e) {
-        return 0;
-      }
-      if (totalSamples === 0) return 0;
-      return clearedSamples / totalSamples;
-    }
-
-    function sparkleAt(x, y) {
-      if (reduced) return;
-      var now = Date.now();
-      if (now - lastSparkle < 60) return;
-      lastSparkle = now;
-      var s = document.createElement("div");
-      s.className = "sparkle";
-      s.style.left = (canvas.offsetLeft + x) + "px";
-      s.style.top = (canvas.offsetTop + y) + "px";
-      s.style.transform = "translate(-50%,-50%)";
-      s.style.transition = "transform 600ms ease, opacity 600ms ease";
-      s.style.opacity = "1";
-      canvas.parentNode.appendChild(s);
-      requestAnimationFrame(function () {
-        var tx = (Math.random() - 0.5) * 30;
-        var ty = (Math.random() - 0.5) * 30;
-        s.style.transform = "translate(calc(-50% + " + tx + "px), calc(-50% + " + ty + "px)) scale(0.3)";
-        s.style.opacity = "0";
-      });
-      setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 700);
-    }
-
-    function autoReveal() {
-      if (autoRevealed) return;
-      autoRevealed = true;
-      // Erase everything gently.
-      var start = Date.now();
-      var duration = 900;
-      function step() {
-        var t = clampi((Date.now() - start) / duration, 0, 1);
-        ctx.save();
-        ctx.globalCompositeOperation = "destination-out";
-        ctx.globalAlpha = 0.15 + t * 0.85;
-        ctx.fillRect(0, 0, cssW, cssH);
-        ctx.restore();
-        if (t < 1) requestAnimationFrame(step);
-        else petalBurst();
-      }
-      step();
-    }
-
-    function petalBurst() {
-      if (reduced) return;
-      var rect = canvas.getBoundingClientRect();
-      var cx = rect.left + rect.width / 2;
-      var cy = rect.top + rect.height / 2;
-      for (var i = 0; i < 22; i++) {
-        (function (i) {
-          var p = document.createElement("div");
-          p.className = "petal-burst";
-          p.style.position = "fixed";
-          p.style.left = cx + "px";
-          p.style.top = cy + "px";
-          p.style.transform = "translate(-50%,-50%)";
-          p.style.opacity = "1";
-          p.style.transition = "transform 1400ms cubic-bezier(0.2,0.8,0.4,1), opacity 1400ms ease";
-          document.body.appendChild(p);
-          var angle = Math.random() * Math.PI * 2;
-          var dist = 80 + Math.random() * 200;
-          var tx = Math.cos(angle) * dist;
-          var ty = Math.sin(angle) * dist + 80;
-          requestAnimationFrame(function () {
-            p.style.transform = "translate(calc(-50% + " + tx + "px), calc(-50% + " + ty + "px)) rotate(" + (Math.random() * 720) + "deg) scale(0.4)";
-            p.style.opacity = "0";
-          });
-          setTimeout(function () { if (p.parentNode) p.parentNode.removeChild(p); }, 1600);
-        })(i);
-      }
-    }
-
-    function checkProgress() {
-      if (autoRevealed) return;
-      var pct = measureCleared();
-      if (pct >= 0.55) autoReveal();
-    }
-
-    function onDown(e) {
-      e.preventDefault();
-      drawing = true;
-      lastPt = getPoint(e);
-      eraseAt(lastPt.x, lastPt.y);
-      sparkleAt(lastPt.x, lastPt.y);
-    }
-    function onMove(e) {
-      if (!drawing) return;
-      e.preventDefault();
-      var pt = getPoint(e);
-      eraseLine(lastPt, pt);
-      sparkleAt(pt.x, pt.y);
-      lastPt = pt;
-    }
-    function onUp(e) {
-      if (!drawing) return;
-      drawing = false;
-      lastPt = null;
-      checkProgress();
-    }
-
-    on(canvas, "mousedown", onDown);
-    on(canvas, "mousemove", onMove);
-    on(window, "mouseup", onUp);
-    on(canvas, "touchstart", onDown, { passive: false });
-    on(canvas, "touchmove", onMove, { passive: false });
-    on(canvas, "touchend", onUp);
-    on(canvas, "touchcancel", onUp);
-    // Keyboard reveal.
-    canvas.setAttribute("tabindex", "0");
-    canvas.setAttribute("role", "button");
-    canvas.setAttribute("aria-label", "Scratch to reveal the invitation. Press Enter to reveal instantly.");
-    on(canvas, "keydown", function (e) {
-      if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
-        e.preventDefault();
-        autoReveal();
-      }
-    });
-
-    if (revealBtn) {
-      on(revealBtn, "click", autoReveal);
-    }
-
-    // Size once; resize handler re-paints (fresh foil).
-    sizeCanvas();
-    var sizeTimer = 0;
-    on(window, "resize", function () {
-      if (sizeTimer) clearTimeout(sizeTimer);
-      sizeTimer = setTimeout(function () {
-        sizeTimer = 0;
-        sizeCanvas();
-      }, 200);
-    });
-  }
-
-  // ==========================================================
-  // GOLD-LIGHT SWEEP between deep plum → ivory sections.
-  // ==========================================================
-  function setupSweeps() {
-    if (reduced) return;
-    // Find pairs: any plum-ish section followed by an ivory section.
-    var sections = $all("section");
-    for (var i = 0; i < sections.length - 1; i++) {
-      var a = sections[i];
-      var b = sections[i + 1];
-      var aIsDark = a.classList.contains("plum-section") ||
-                    a.id === "scratchWrap" || a.id === "finale" ||
-                    a.id === "stage" || a.id === "dua";
-      var bIsLight = b.classList.contains("ivory-section") ||
-                     b.id === "programme" || b.id === "countdown" ||
-                     b.id === "venue" || b.id === "story" ||
-                     b.id === "gallery" || b.id === "rsvp";
-      if (aIsDark && bIsLight) {
-        injectSweep(b);
-      }
-    }
-  }
-
-  function injectSweep(section) {
-    if (section.querySelector(".sweep")) return;
-    var sweep = document.createElement("div");
-    sweep.className = "sweep";
-    sweep.setAttribute("aria-hidden", "true");
-    section.insertBefore(sweep, section.firstChild);
-    var played = false;
-    function play() {
-      if (played) return;
-      var rect = section.getBoundingClientRect();
-      var vh = window.innerHeight;
-      if (rect.top < vh * 0.85 && rect.bottom > vh * 0.15) {
-        played = true;
-        var before = sweep.querySelector("::before");
-        // Re-trigger animation by replacing the element content.
-        sweep.innerHTML = "";
-        void sweep.offsetWidth;
-        sweep.style.opacity = "1";
-        setTimeout(function () {
-          if (sweep && sweep.parentNode) sweep.parentNode.removeChild(sweep);
-        }, 3000);
-        // The CSS animation runs automatically via .sweep::before.
-        // We need to force it: temporarily disable and re-enable.
-        var style = sweep.style;
-        style.setProperty("--sweep-trigger", "1");
-      }
-    }
-    on(window, "scroll", play, { passive: true });
-    on(window, "resize", play);
-    // Fallback: play when visible via IntersectionObserver.
-    if (typeof IntersectionObserver !== "undefined") {
-      var io = new IntersectionObserver(function (entries) {
-        for (var i = 0; i < entries.length; i++) {
-          if (entries[i].isIntersecting) {
-            play();
-            io.disconnect();
-            break;
-          }
-        }
-      }, { threshold: 0.15 });
-      io.observe(section);
-    } else {
-      play();
-    }
-  }
-
-  // ==========================================================
-  // QUIET REVEALS — one rise-in for all .reveal elements.
-  // ==========================================================
-  function setupReveals() {
-    var els = $all(".reveal");
-    if (!els.length) return;
-    if (reduced) {
-      for (var i = 0; i < els.length; i++) els[i].classList.add("in");
-      return;
-    }
-    if (typeof IntersectionObserver === "undefined") {
-      for (var j = 0; j < els.length; j++) els[j].classList.add("in");
-      return;
-    }
-    var io = new IntersectionObserver(function (entries) {
-      for (var k = 0; k < entries.length; k++) {
-        var e = entries[k];
-        if (e.isIntersecting) {
-          e.target.classList.add("in");
-          io.unobserve(e.target);
-        }
-      }
-    }, { threshold: 0.15, rootMargin: "0px 0px -40px 0px" });
-    for (var m = 0; m < els.length; m++) io.observe(els[m]);
-  }
-
-  // ==========================================================
-  // PROGRAMME — gold line draws down the timeline.
-  // ==========================================================
-  function setupProgramme() {
-    var prog = document.getElementById("programme");
-    if (!prog) return;
-    var timeline = prog.querySelector(".timeline");
-    if (!timeline) return;
-    if (reduced) {
-      timeline.classList.add("drawn");
-      return;
-    }
-    if (typeof IntersectionObserver === "undefined") {
-      timeline.classList.add("drawn");
-      return;
-    }
-    var io = new IntersectionObserver(function (entries) {
-      for (var i = 0; i < entries.length; i++) {
-        if (entries[i].isIntersecting) {
-          timeline.classList.add("drawn");
-          io.disconnect();
-          break;
-        }
-      }
-    }, { threshold: 0.2 });
-    io.observe(timeline);
-  }
-
-  // ==========================================================
-  // EVENT CARDS — 3D tilt + tap-to-flip.
-  // ==========================================================
-  function setupEventCards() {
-    var cards = $all(".ev-card");
-    for (var i = 0; i < cards.length; i++) {
-      (function (cardEl) {
-        var inner = cardEl.querySelector(".ev-inner");
-        if (!inner) return;
-
-        // Flip on click / tap / keyboard.
-        var front = cardEl.querySelector(".front");
-        var back = cardEl.querySelector(".back");
-        var focusTarget = front || inner;
-        focusTarget.setAttribute("tabindex", "0");
-        focusTarget.setAttribute("role", "button");
-        focusTarget.setAttribute("aria-label", "Flip event card for details");
-        function flip() {
-          cardEl.classList.toggle("flipped");
-          var isFlipped = cardEl.classList.contains("flipped");
-          focusTarget.setAttribute("aria-pressed", isFlipped ? "true" : "false");
-        }
-        on(focusTarget, "click", flip);
-        on(focusTarget, "keydown", function (e) {
-          if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
-            e.preventDefault();
-            flip();
-          }
+    function on(el, ev, fn, opt) { if (el) el.addEventListener(ev, fn, opt || false); }
+    function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+    function rafThrottle(fn) {
+      var queued = false;
+      return function () {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(function () {
+          queued = false;
+          fn();
         });
-
-        // 3D tilt on pointer move (desktop only, no touch).
-        if (reduced) return;
-        var isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
-        if (isTouch) return;
-
-        on(cardEl, "mousemove", function (e) {
-          if (cardEl.classList.contains("flipped")) return;
-          var rect = cardEl.getBoundingClientRect();
-          var cx = rect.left + rect.width / 2;
-          var cy = rect.top + rect.height / 2;
-          var dx = (e.clientX - cx) / (rect.width / 2);
-          var dy = (e.clientY - cy) / (rect.height / 2);
-          var rx = clampi(-dy * 8, -8, 8);
-          var ry = clampi(dx * 8, -8, 8);
-          cardEl.classList.add("tilt");
-          inner.style.transform = "rotateX(" + rx + "deg) rotateY(" + ry + "deg)";
-        });
-        on(cardEl, "mouseleave", function () {
-          cardEl.classList.remove("tilt");
-          inner.style.transform = "";
-        });
-      })(cards[i]);
+      };
     }
-  }
 
-  // ==========================================================
-  // GALLERY — swipeable stacked polaroids.
-  // ==========================================================
-  function setupGallery() {
-    var gallery = document.getElementById("gallery");
-    if (!gallery) return;
-    var polaroids = $all(".polaroid", gallery);
-    if (polaroids.length < 2) return;
-    var dots = $all(".gallery-dot", gallery);
-    var stack = gallery.querySelector(".gallery-stack");
-    if (!stack) return;
+    /* ============================================================
+       CORRIDOR
+       ============================================================ */
+    try {
+      var stage = document.getElementById("stage");
+      var stageInner = document.getElementById("stageInner");
+      var arches = $$(".arch");
+      var contents = $$(".arch-content", stageInner || document);
+      var bloom = $(".gold-bloom", stageInner || document);
 
-    var index = 0;
-    var startX = 0;
-    var startY = 0;
-    var dragging = false;
-    var moved = false;
+      if (stage && stageInner && arches.length) {
+        var N = arches.length;
+        var TOL = 0.55;
 
-    function applyClasses() {
-      var n = polaroids.length;
-      for (var i = 0; i < n; i++) {
-        var p = polaroids[i];
-        p.className = "polaroid";
-        var rel = (i - index + n) % n;
-        if (rel > 4) rel = -1; // hidden
-        if (rel >= 0 && rel <= 4) {
-          p.classList.add("p" + rel);
-          p.style.opacity = rel === 0 ? "1" : "0.9";
-          p.style.pointerEvents = rel === 0 ? "auto" : "none";
+        /* Initial paint */
+        function paint() {
+          var sTop = stage.offsetTop;
+          var sH = stage.offsetHeight;
+          var vh = window.innerHeight;
+          var p = clamp((window.scrollY - sTop) / Math.max(1, sH - vh), 0, 1);
+
+          for (var i = 0; i < N; i++) {
+            var d = i - p * (N - 1);
+            var z = -d * 520;
+            var op;
+            if (d >= 0) op = Math.max(0, 1 - d * 0.75);
+            else op = Math.max(0, 1 + d * 1.7);
+            var blur = d < 0 ? Math.min(8, -d * 10) : 0;
+
+            var a = arches[i];
+            a.style.transform = "translate(-50%,-50%) translate3d(0,0," + z + "px)";
+            a.style.opacity = op;
+            if (blur > 0.4) a.style.filter = "blur(" + blur.toFixed(2) + "px)";
+            else a.style.filter = "none";
+            a.style.pointerEvents = (Math.abs(d) < 0.55) ? "auto" : "none";
+
+            if (contents[i]) {
+              var c = Math.abs(d) < TOL ? (1 - Math.abs(d) / TOL) : 0;
+              contents[i].style.opacity = c;
+            }
+          }
+
+          if (bloom) {
+            var near = false;
+            for (var k = 0; k < N; k++) {
+              var dk = k - p * (N - 1);
+              if (Math.abs(dk) < 0.15) { near = true; break; }
+            }
+            bloom.style.opacity = near ? "1" : "0";
+          }
+        }
+
+        if (REDUCED || SAFE) {
+          /* Stack all arches; no pinning. */
+          for (var ri = 0; ri < arches.length; ri++) {
+            arches[ri].style.position = "relative";
+            arches[ri].style.left = "auto";
+            arches[ri].style.top = "auto";
+            arches[ri].style.transform = "none";
+            arches[ri].style.opacity = "1";
+            arches[ri].style.filter = "none";
+            if (contents[ri]) contents[ri].style.opacity = "1";
+          }
+          stage.style.height = "auto";
+          stageInner.style.position = "relative";
+          stageInner.style.height = "auto";
         } else {
-          p.style.opacity = "0";
-          p.style.pointerEvents = "none";
+          var onScroll = rafThrottle(paint);
+          window.addEventListener("scroll", onScroll, { passive: true });
+          window.addEventListener("resize", onScroll);
+          paint();
+          /* Re-paint after fonts/images settle. */
+          setTimeout(paint, 400);
+          setTimeout(paint, 1200);
         }
-      }
-      for (var d = 0; d < dots.length; d++) {
-        dots[d].classList.toggle("on", d === index);
-      }
-    }
 
-    function next() {
-      index = (index + 1) % polaroids.length;
-      applyClasses();
-    }
-    function prev() {
-      index = (index - 1 + polaroids.length) % polaroids.length;
-      applyClasses();
-    }
+        /* Ink names when their arch is near. */
+        var names = $$(".name");
+        var inkedFlags = [];
 
-    function onDown(e) {
-      if (e.touches && e.touches.length > 1) return;
-      dragging = true;
-      moved = false;
-      var t = e.touches ? e.touches[0] : e;
-      startX = t.clientX;
-      startY = t.clientY;
-    }
-    function onMove(e) {
-      if (!dragging) return;
-      var t = e.touches ? e.touches[0] : e;
-      var dx = t.clientX - startX;
-      var dy = t.clientY - startY;
-      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) moved = true;
-    }
-    function onUp(e) {
-      if (!dragging) return;
-      dragging = false;
-      var t = (e.changedTouches && e.changedTouches[0]) || e;
-      var dx = t.clientX - startX;
-      if (Math.abs(dx) > 40) {
-        if (dx < 0) next(); else prev();
-      } else if (!moved) {
-        next();
-      }
-    }
-
-    on(stack, "touchstart", onDown, { passive: true });
-    on(stack, "touchmove", onMove, { passive: true });
-    on(stack, "touchend", onUp);
-    on(stack, "mousedown", onDown);
-    on(window, "mousemove", onMove);
-    on(window, "mouseup", onUp);
-
-    // Keyboard.
-    stack.setAttribute("tabindex", "0");
-    stack.setAttribute("role", "region");
-    stack.setAttribute("aria-label", "Photo gallery. Use left and right arrow keys.");
-    on(stack, "keydown", function (e) {
-      if (e.key === "ArrowRight") { e.preventDefault(); next(); }
-      else if (e.key === "ArrowLeft") { e.preventDefault(); prev(); }
-    });
-
-    applyClasses();
-  }
-
-  // ==========================================================
-  // CALENDAR .ICS + RSVP
-  // ==========================================================
-  function pad2(n) { return (n < 10 ? "0" : "") + n; }
-
-  function formatICSDate(d) {
-    return d.getUTCFullYear() +
-      pad2(d.getUTCMonth() + 1) +
-      pad2(d.getUTCDate()) + "T" +
-      pad2(d.getUTCHours()) +
-      pad2(d.getUTCMinutes()) +
-      pad2(d.getUTCSeconds()) + "Z";
-  }
-
-  function eventUTC(ev) {
-    if (!ev || !ev.date) return null;
-    var parts = String(ev.date).split("-");
-    if (parts.length !== 3) return null;
-    var y = parseInt(parts[0], 10);
-    var m = parseInt(parts[1], 10);
-    var d = parseInt(parts[2], 10);
-    var t = (ev.time || "18:00").split(":");
-    var hh = parseInt(t[0], 10) || 0;
-    var mm = parseInt(t[1], 10) || 0;
-    if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
-    // Event is in IST: subtract 5.5 hours to get UTC.
-    return new Date(Date.UTC(y, m - 1, d, hh, mm) - 5.5 * 60 * 60 * 1000);
-  }
-
-  function buildICS(ev) {
-    var start = eventUTC(ev);
-    if (!start) return "";
-    var end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
-    var uid = "nikah-" + (ev.name || "event").replace(/[^A-Za-z0-9]/g, "") + "-" + start.getTime() + "@nikah";
-    var summary = (ev.name || "Nikah Event") + " — " + (DATA.person1 && DATA.person1.name ? DATA.person1.name : "") + " & " + (DATA.person2 && DATA.person2.name ? DATA.person2.name : "");
-    summary = summary.replace(/&amp;/g, "&");
-    var location = (ev.venue || "") + (ev.address ? " — " + ev.address : "");
-    var desc = (ev.note || "") + (ev.dress ? " Dress code: " + ev.dress : "");
-    var lines = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//Nikah Card Builder//EN",
-      "CALSCALE:GREGORIAN",
-      "BEGIN:VEVENT",
-      "UID:" + uid,
-      "DTSTAMP:" + formatICSDate(new Date()),
-      "DTSTART:" + formatICSDate(start),
-      "DTEND:" + formatICSDate(end),
-      "SUMMARY:" + escapeICS(summary),
-      "LOCATION:" + escapeICS(location),
-      "DESCRIPTION:" + escapeICS(desc),
-      "END:VEVENT",
-      "END:VCALENDAR"
-    ];
-    return lines.join("\r\n");
-  }
-
-  function escapeICS(s) {
-    return String(s || "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
-  }
-
-  function downloadICS(ev) {
-    var ics = buildICS(ev);
-    if (!ics) return;
-    try {
-      var blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url;
-      a.download = ((ev.name || "event").replace(/[^A-Za-z0-9]/g, "-")) + ".ics";
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(function () {
-        if (a.parentNode) a.parentNode.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 400);
-    } catch (e) {}
-  }
-
-  function setupCalendarButtons() {
-    var btns = $all(".cal-btn");
-    for (var i = 0; i < btns.length; i++) {
-      (function (btn) {
-        var name = btn.getAttribute("data-ev") || "";
-        var ev = null;
-        if (DATA && DATA.events) {
-          for (var j = 0; j < DATA.events.length; j++) {
-            if (DATA.events[j].name === name) { ev = DATA.events[j]; break; }
+        function maybeInkNames() {
+          if (REDUCED || SAFE) {
+            for (var i = 0; i < names.length; i++) {
+              names[i].classList.add("inked", "shimmer");
+            }
+            return;
+          }
+          var sTop = stage.offsetTop;
+          var sH = stage.offsetHeight;
+          var vh = window.innerHeight;
+          var p = clamp((window.scrollY - sTop) / Math.max(1, sH - vh), 0, 1);
+          for (var n = 0; n < names.length; n++) {
+            var arch = names[n].closest ? names[n].closest(".arch") : null;
+            if (!arch) continue;
+            var idx = parseInt(arch.getAttribute("data-i"), 10) || 0;
+            var d = idx - p * (N - 1);
+            if (!inkedFlags[n] && Math.abs(d) < 0.4) {
+              inkedFlags[n] = true;
+              (function (nm) {
+                nm.classList.add("inked", "inking");
+                var pen = nm.querySelector(".pen");
+                setTimeout(function () {
+                  nm.classList.remove("inking");
+                  nm.classList.add("shimmer");
+                  if (pen) pen.style.opacity = "0";
+                }, 1900);
+              })(names[n]);
+            }
           }
         }
-        if (!ev) return;
-        on(btn, "click", function () { downloadICS(ev); });
-      })(btns[i]);
-    }
-  }
 
-  function setupRSVP() {
-    var wa = document.getElementById("rsvpBtn");
-    if (!wa) return;
-    var number = DATA && DATA.rsvp && DATA.rsvp.whatsapp ? String(DATA.rsvp.whatsapp).replace(/[^0-9]/g, "") : "";
-    if (!number) { wa.style.display = "none"; return; }
-    var guest = "";
-    attempt(function () {
-      var params = new URLSearchParams(window.location.search);
-      guest = params.get("guest") || "";
-    });
-    var msg = "Assalamu Alaikum! ";
-    if (guest) msg += guest + " here. ";
-    msg += "I would love to attend the Nikah of " +
-      (DATA.person1 && DATA.person1.name ? DATA.person1.name : "") + " & " +
-      (DATA.person2 && DATA.person2.name ? DATA.person2.name : "") +
-      ". Insha'Allah I will be there.";
-    var href = "https://wa.me/" + number + "?text=" + encodeURIComponent(msg);
-    wa.setAttribute("href", href);
-    wa.setAttribute("target", "_blank");
-    wa.setAttribute("rel", "noopener");
-  }
-
-  // ==========================================================
-  // SHARE
-  // ==========================================================
-  function setupShare() {
-    var btn = document.getElementById("shareBtn");
-    if (!btn) return;
-    on(btn, "click", function () {
-      var url = window.location.href;
-      var title = "Nikah Invitation — " +
-        (DATA.person1 && DATA.person1.name ? DATA.person1.name : "") + " & " +
-        (DATA.person2 && DATA.person2.name ? DATA.person2.name : "");
-      if (navigator.share) {
-        attempt(function () {
-          navigator.share({ title: title, text: "You are invited to our Nikah.", url: url }).catch(function () {});
-        });
-        return;
+        if (!(REDUCED || SAFE)) {
+          var onScrollInk = rafThrottle(maybeInkNames);
+          window.addEventListener("scroll", onScrollInk, { passive: true });
+          maybeInkNames();
+        } else {
+          maybeInkNames();
+        }
       }
-      // Fallback: copy link.
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(function () {
-          btn.textContent = "Link copied";
-          setTimeout(function () { btn.textContent = "Share"; }, 1800);
-        }).catch(function () { legacyCopy(url, btn); });
+    } catch (e) { /* ignore */ }
+
+    /* ============================================================
+       SCRATCH PANEL
+       ============================================================ */
+    try {
+      var scratchPanel = $(".scratch-panel");
+      var scratchCanvas = document.getElementById("scratchCanvas");
+      var revealBtn = document.getElementById("revealBtn");
+
+      if (scratchPanel && scratchCanvas) {
+        var ctx = scratchCanvas.getContext("2d");
+        var W = 0, H = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var done = false;
+        var moveCount = 0;
+        var sparkles = [];
+
+        function sizeCanvas() {
+          var rect = scratchPanel.getBoundingClientRect();
+          W = Math.max(60, Math.floor(rect.width));
+          H = Math.max(60, Math.floor(rect.height));
+          scratchCanvas.width = Math.floor(W * dpr);
+          scratchCanvas.height = Math.floor(H * dpr);
+          scratchCanvas.style.width = W + "px";
+          scratchCanvas.style.height = H + "px";
+          if (ctx && ctx.setTransform) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          drawFoil();
+        }
+
+        function drawFoil() {
+          if (!ctx) return;
+          var g = ctx.createLinearGradient(0, 0, W, H);
+          g.addColorStop(0, "#F0D58A");
+          g.addColorStop(0.35, "#C9A24B");
+          g.addColorStop(0.55, "#E6C87C");
+          g.addColorStop(0.75, "#C9A24B");
+          g.addColorStop(1, "#F0D58A");
+          ctx.globalCompositeOperation = "source-over";
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, W, H);
+          /* Glitter dots */
+          ctx.fillStyle = "rgba(255,255,255,.7)";
+          for (var i = 0; i < 250; i++) {
+            var x = Math.random() * W;
+            var y = Math.random() * H;
+            ctx.globalAlpha = 0.3 + Math.random() * 0.6;
+            ctx.fillRect(x, y, 1, 1);
+          }
+          ctx.globalAlpha = 1;
+          /* Faint label */
+          ctx.fillStyle = "rgba(58,20,38,.55)";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          var fs = Math.max(14, Math.min(W, H) * 0.06);
+          ctx.font = "italic " + fs + "px 'Cormorant Garamond', Georgia, serif";
+          ctx.fillText("Scratch here", W / 2, H / 2);
+        }
+
+        sizeCanvas();
+        window.addEventListener("resize", function () {
+          if (!done) sizeCanvas();
+        });
+
+        function eraseAt(x, y) {
+          if (!ctx) return;
+          ctx.globalCompositeOperation = "destination-out";
+          var r = 28;
+          var grd = ctx.createRadialGradient(x, y, r * 0.15, x, y, r);
+          grd.addColorStop(0, "rgba(0,0,0,1)");
+          grd.addColorStop(0.7, "rgba(0,0,0,0.85)");
+          grd.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalCompositeOperation = "source-over";
+        }
+
+        function estimateCleared() {
+          if (!ctx) return 0;
+          var gw = 24, gh = 24;
+          var sw = Math.max(1, Math.floor(scratchCanvas.width / gw));
+          var sh = Math.max(1, Math.floor(scratchCanvas.height / gh));
+          var cleared = 0, total = 0;
+          try {
+            var img = ctx.getImageData(0, 0, scratchCanvas.width, scratchCanvas.height);
+            var data = img.data;
+            for (var gy = 0; gy < gh; gy++) {
+              for (var gx = 0; gx < gw; gx++) {
+                var px = Math.floor((gx + 0.5) * (scratchCanvas.width / gw));
+                var py = Math.floor((gy + 0.5) * (scratchCanvas.height / gh));
+                if (px < 0) px = 0; if (py < 0) py = 0;
+                if (px >= scratchCanvas.width) px = scratchCanvas.width - 1;
+                if (py >= scratchCanvas.height) py = scratchCanvas.height - 1;
+                var idx = (py * scratchCanvas.width + px) * 4;
+                total++;
+                if (data[idx + 3] < 40) cleared++;
+              }
+            }
+          } catch (e) {
+            return 0;
+          }
+          return total ? cleared / total : 0;
+        }
+
+        function finish() {
+          if (done) return;
+          done = true;
+          try {
+            scratchCanvas.classList.add("done");
+            if (window.__cardBurst) window.__cardBurst();
+          } catch (e) {}
+        }
+
+        var drawing = false;
+        var lastX = 0, lastY = 0;
+        var lastSparkTime = 0;
+
+        function pointerPos(e) {
+          var r = scratchCanvas.getBoundingClientRect();
+          var cx, cy;
+          if (e.touches && e.touches.length) {
+            cx = e.touches[0].clientX; cy = e.touches[0].clientY;
+          } else if (e.changedTouches && e.changedTouches.length) {
+            cx = e.changedTouches[0].clientX; cy = e.changedTouches[0].clientY;
+          } else {
+            cx = e.clientX; cy = e.clientY;
+          }
+          return { x: cx - r.left, y: cy - r.top };
+        }
+
+        function spawnSpark(x, y) {
+          try {
+            if (!window.__cardBurst) return;
+            /* Only use our own burst; the runtime handles visuals. */
+          } catch (e) {}
+        }
+
+        function startDraw(e) {
+          if (done) return;
+          drawing = true;
+          var p = pointerPos(e);
+          lastX = p.x; lastY = p.y;
+          eraseAt(p.x, p.y);
+          e.preventDefault && e.preventDefault();
+        }
+        function moveDraw(e) {
+          if (!drawing || done) return;
+          var p = pointerPos(e);
+          var dx = p.x - lastX, dy = p.y - lastY;
+          var dist = Math.sqrt(dx * dx + dy * dy);
+          var steps = Math.max(1, Math.ceil(dist / 12));
+          for (var s = 0; s < steps; s++) {
+            var t = s / steps;
+            eraseAt(lastX + dx * t, lastY + dy * t);
+          }
+          lastX = p.x; lastY = p.y;
+          moveCount++;
+          if (moveCount % 10 === 0) {
+            if (estimateCleared() >= 0.55) finish();
+          }
+          e.preventDefault && e.preventDefault();
+        }
+        function endDraw() {
+          if (!drawing) return;
+          drawing = false;
+          if (estimateCleared() >= 0.55) finish();
+        }
+
+        /* Pointer events with touch fallback */
+        if ("PointerEvent" in window) {
+          on(scratchCanvas, "pointerdown", startDraw);
+          on(scratchCanvas, "pointermove", moveDraw);
+          on(scratchCanvas, "pointerup", endDraw);
+          on(scratchCanvas, "pointercancel", endDraw);
+          on(scratchCanvas, "pointerleave", endDraw);
+        } else {
+          on(scratchCanvas, "mousedown", startDraw);
+          on(scratchCanvas, "mousemove", function (e) { if (drawing) moveDraw(e); });
+          on(window, "mouseup", endDraw);
+          on(scratchCanvas, "touchstart", startDraw, { passive: false });
+          on(scratchCanvas, "touchmove", moveDraw, { passive: false });
+          on(scratchCanvas, "touchend", endDraw);
+          on(scratchCanvas, "touchcancel", endDraw);
+        }
+
+        /* Keyboard / accessibility: reveal button */
+        if (revealBtn) {
+          on(revealBtn, "click", finish);
+        }
+
+        /* Auto-finish when panel is nearly out of view after 40 sec? No — let user decide. */
+      }
+    } catch (e) { /* ignore */ }
+
+    /* ============================================================
+       INK NAMES (safety net if corridor failed)
+       ============================================================ */
+    try {
+      var allNames = $$(".name");
+      if (allNames.length) {
+        if (NO_MOTION) {
+          for (var ini = 0; ini < allNames.length; ini++) {
+            allNames[ini].classList.add("inked", "shimmer");
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    /* ============================================================
+       GOLD SWEEP between deep & light sections
+       ============================================================ */
+    try {
+      if (!NO_MOTION) {
+        var sweeps = $$(".sweep");
+        if (sweeps.length && "IntersectionObserver" in window) {
+          var swIo = new IntersectionObserver(function (entries) {
+            for (var i = 0; i < entries.length; i++) {
+              var en = entries[i];
+              if (en.isIntersecting && !en.target.__fired) {
+                en.target.__fired = true;
+                en.target.classList.add("fire");
+              }
+            }
+          }, { threshold: 0.1 });
+          for (var s = 0; s < sweeps.length; s++) swIo.observe(sweeps[s]);
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    /* ============================================================
+       REVEAL — IntersectionObserver
+       ============================================================ */
+    try {
+      var reveals = $$(".reveal");
+      if (NO_MOTION) {
+        for (var rvi = 0; rvi < reveals.length; rvi++) reveals[rvi].classList.add("in");
+      } else if ("IntersectionObserver" in window) {
+        var rio = new IntersectionObserver(function (entries) {
+          for (var i = 0; i < entries.length; i++) {
+            var en = entries[i];
+            if (en.isIntersecting) {
+              en.target.classList.add("in");
+              rio.unobserve(en.target);
+            }
+          }
+        }, { rootMargin: "0px 0px -10% 0px", threshold: 0.1 });
+        for (var rv = 0; rv < reveals.length; rv++) rio.observe(reveals[rv]);
       } else {
-        legacyCopy(url, btn);
+        for (var rvf = 0; rvf < reveals.length; rvf++) reveals[rvf].classList.add("in");
       }
-    });
-  }
+    } catch (e) { /* ignore */ }
 
-  function legacyCopy(text, btn) {
+    /* ============================================================
+       PROGRAMME — parchment, tilt, flip
+       ============================================================ */
     try {
-      var ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-      btn.textContent = "Link copied";
-      setTimeout(function () { btn.textContent = "Share"; }, 1800);
-    } catch (e) {}
-  }
+      var timeline = $(".timeline");
+      if (timeline) {
+        if (NO_MOTION) {
+          timeline.classList.add("drawn");
+        } else if ("IntersectionObserver" in window) {
+          var tio = new IntersectionObserver(function (entries) {
+            for (var i = 0; i < entries.length; i++) {
+              if (entries[i].isIntersecting) {
+                entries[i].target.classList.add("drawn");
+                tio.unobserve(entries[i].target);
+              }
+            }
+          }, { threshold: 0.15 });
+          tio.observe(timeline);
+        } else {
+          timeline.classList.add("drawn");
+        }
+      }
 
-  // ==========================================================
-  // VENUE TABS
-  // ==========================================================
-  function setupVenueTabs() {
-    var tabs = $all(".venue-tab");
-    if (tabs.length < 2) return;
-    var cards = $all(".venue-card");
-    for (var i = 0; i < tabs.length; i++) {
-      (function (tab, i) {
-        on(tab, "click", function () {
-          for (var j = 0; j < tabs.length; j++) tabs[j].classList.remove("active");
-          tab.classList.add("active");
-          for (var k = 0; k < cards.length; k++) {
-            cards[k].style.display = (k === i) ? "" : "none";
+      var evCards = $$(".ev-card");
+      for (var ci = 0; ci < evCards.length; ci++) {
+        (function (cardEl) {
+          /* Tap to flip */
+          on(cardEl, "click", function (e) {
+            if (e && e.target && (e.target.tagName === "A" || e.target.tagName === "BUTTON")) return;
+            cardEl.classList.toggle("flipped");
+          });
+          on(cardEl, "keydown", function (e) {
+            if (e.key === "Enter" || e.key === " " || e.keyCode === 13 || e.keyCode === 32) {
+              e.preventDefault();
+              cardEl.classList.toggle("flipped");
+            }
+          });
+          if (!cardEl.getAttribute("tabindex")) cardEl.setAttribute("tabindex", "0");
+          if (!cardEl.getAttribute("role")) cardEl.setAttribute("role", "button");
+          if (!cardEl.getAttribute("aria-label")) {
+            var nm = cardEl.querySelector(".ev-name");
+            cardEl.setAttribute("aria-label", "Event: " + (nm ? nm.textContent : "programme item") + ". Tap to flip.");
           }
+          /* Tilt on pointermove */
+          if (!NO_MOTION && "PointerEvent" in window) {
+            var maxDeg = 8;
+            on(cardEl, "pointermove", function (e) {
+              if (cardEl.classList.contains("flipped")) return;
+              var r = cardEl.getBoundingClientRect();
+              var px = (e.clientX - r.left) / r.width - 0.5;
+              var py = (e.clientY - r.top) / r.height - 0.5;
+              var rx = (-py * maxDeg).toFixed(2);
+              var ry = (px * maxDeg).toFixed(2);
+              cardEl.style.transform = "rotateX(" + rx + "deg) rotateY(" + ry + "deg)";
+            });
+            on(cardEl, "pointerleave", function () {
+              cardEl.style.transform = "";
+            });
+          }
+        })(evCards[ci]);
+      }
+    } catch (e) { /* ignore */ }
+
+    /* ============================================================
+       GALLERY — swipeable polaroids
+       ============================================================ */
+    try {
+      var stack = $(".gallery-stack");
+      if (stack) {
+        var pols = $$(".polaroid", stack);
+        var current = 0;
+        var total = pols.length;
+        function layoutPols() {
+          for (var i = 0; i < total; i++) {
+            var off = i - current;
+            var absOff = Math.abs(off);
+            var rot = off === 0 ? -2 : (off % 2 === 0 ? -8 : 8) * Math.min(1, absOff);
+            var tx = off * 18;
+            var ty = absOff * 10;
+            var sc = off === 0 ? 1 : Math.max(0.7, 1 - absOff * 0.06);
+            pols[i].style.transform = "translate(-50%,-50%) translate(" + tx + "px," + ty + "px) rotate(" + rot + "deg) scale(" + sc + ")";
+            pols[i].style.opacity = (absOff > 2) ? "0" : "1";
+            pols[i].style.zIndex = String(total - absOff);
+            pols[i].style.pointerEvents = off === 0 ? "auto" : "none";
+          }
+        }
+        layoutPols();
+
+        var startX = null, startT = 0, drag = false;
+        function gStart(e) {
+          if (e.touches && e.touches.length) {
+            startX = e.touches[0].clientX; startT = Date.now(); drag = true;
+          } else if (e.clientX != null) {
+            startX = e.clientX; startT = Date.now(); drag = true;
+          }
+        }
+        function gEnd(e) {
+          if (!drag || startX == null) { drag = false; return; }
+          var ex;
+          if (e.changedTouches && e.changedTouches.length) ex = e.changedTouches[0].clientX;
+          else if (e.clientX != null) ex = e.clientX;
+          else { drag = false; return; }
+          var dx = ex - startX;
+          var dt = Date.now() - startT;
+          drag = false; startX = null;
+          if (Math.abs(dx) > 40 && dt < 900) {
+            if (dx < 0) current = Math.min(total - 1, current + 1);
+            else current = Math.max(0, current - 1);
+            layoutPols();
+          }
+        }
+        on(stack, "touchstart", gStart, { passive: true });
+        on(stack, "touchend", gEnd);
+        on(stack, "pointerdown", function (e) { if (!e.pointerType || e.pointerType !== "touch") gStart(e); });
+        on(stack, "pointerup", function (e) { if (!e.pointerType || e.pointerType !== "touch") gEnd(e); });
+        /* Keyboard */
+        on(stack, "keydown", function (e) {
+          if (e.key === "ArrowRight") { current = Math.min(total - 1, current + 1); layoutPols(); }
+          else if (e.key === "ArrowLeft") { current = Math.max(0, current - 1); layoutPols(); }
         });
-      })(tabs[i], i);
-    }
-  }
+        if (!stack.getAttribute("tabindex")) stack.setAttribute("tabindex", "0");
+        if (!stack.getAttribute("aria-label")) stack.setAttribute("aria-label", "Photo gallery. Use arrow keys to browse.");
+      }
+    } catch (e) { /* ignore */ }
 
-  // ==========================================================
-  // BOOT — run everything once the card is opened.
-  // ==========================================================
-  function run() {
-    attempt(setupCorridor);
-    attempt(setupScratch);
-    attempt(setupSweeps);
-    attempt(setupProgramme);
-    attempt(setupEventCards);
-    attempt(setupGallery);
-    attempt(setupVenueTabs);
-    attempt(setupCalendarButtons);
-    attempt(setupRSVP);
-    attempt(setupShare);
-    attempt(setupReveals);
-  }
+    /* ============================================================
+       VENUE — tabs
+       ============================================================ */
+    try {
+      var venueRoot = document.getElementById("venue");
+      if (venueRoot) {
+        var tabs = $$(".tab", venueRoot);
+        var panels = $$(".venue-panel", venueRoot);
+        function showPanel(idx) {
+          for (var i = 0; i < tabs.length; i++) {
+            tabs[i].classList.toggle("active", i === idx);
+            tabs[i].setAttribute("aria-selected", i === idx ? "true" : "false");
+          }
+          for (var j = 0; j < panels.length; j++) {
+            panels[j].style.display = (j === idx) ? "" : "none";
+          }
+        }
+        for (var ti = 0; ti < tabs.length; ti++) {
+          (function (i) {
+            on(tabs[i], "click", function () { showPanel(i); });
+          })(ti);
+        }
+        if (tabs.length) showPanel(0);
+      }
+    } catch (e) { /* ignore */ }
 
-  // Wait for opening; then run.
-  card.onOpen(function () {
-    // Small delay so the Arrival crossfade isn't fighting the reveal.
-    setTimeout(run, 120);
-  });
+    /* ============================================================
+       CALENDAR (.ics)
+       ============================================================ */
+    try {
+      var calBtns = $$(".cal-btn");
+      function pad2(n) { return n < 10 ? "0" + n : String(n); }
+      function toUTCString(ms) {
+        var d = new Date(ms);
+        return d.getUTCFullYear() + pad2(d.getUTCMonth() + 1) + pad2(d.getUTCDate()) + "T" + pad2(d.getUTCHours()) + pad2(d.getUTCMinutes()) + pad2(d.getUTCSeconds()) + "Z";
+      }
+      function safeIcs(s) {
+        return String(s == null ? "" : s).replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+      }
+      function buildIcs(ev) {
+        var dateStr = (ev.date || "").trim();
+        var timeStr = (ev.time || "12:00").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+        var t = timeStr.length === 5 ? timeStr : "12:00";
+        var iso = dateStr + "T" + t + ":00+05:30";
+        var start = new Date(iso);
+        if (isNaN(start.getTime())) return null;
+        var end = new Date(start.getTime() + 3 * 3600 * 1000);
+        var uid = "nikah-" + dateStr.replace(/-/g, "") + "-" + t.replace(/:/g, "") + "-" + Math.random().toString(36).slice(2, 8) + "@nikah-card";
+        var lines = [
+          "BEGIN:VCALENDAR",
+          "VERSION:2.0",
+          "PRODID:-//Nikah Card Builder//EN",
+          "CALSCALE:GREGORIAN",
+          "BEGIN:VEVENT",
+          "UID:" + uid,
+          "DTSTAMP:" + toUTCString(Date.now()),
+          "DTSTART:" + toUTCString(start.getTime()),
+          "DTEND:" + toUTCString(end.getTime()),
+          "SUMMARY:" + safeIcs(ev.name || "Nikah Event"),
+          "LOCATION:" + safeIcs((ev.venue || "") + (ev.address ? ", " + ev.address : "")),
+          "DESCRIPTION:" + safeIcs(ev.note || ""),
+          "END:VEVENT",
+          "END:VCALENDAR"
+        ];
+        return lines.join("\r\n");
+      }
+      for (var cbi = 0; cbi < calBtns.length; cbi++) {
+        (function (btn, idx) {
+          on(btn, "click", function () {
+            try {
+              var ev = (DATA.events && DATA.events[idx]) ? DATA.events[idx] : null;
+              if (!ev) return;
+              var ics = buildIcs(ev);
+              if (!ics) return;
+              var blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+              var url = URL.createObjectURL(blob);
+              var a = document.createElement("a");
+              a.href = url;
+              a.download = (ev.name || "event").replace(/[^a-z0-9\-_ ]/gi, "").trim().replace(/\s+/g, "-").toLowerCase() + ".ics";
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(function () {
+                try { document.body.removeChild(a); URL.revokeObjectURL(url); } catch (e) {}
+              }, 400);
+            } catch (e) {}
+          });
+        })(calBtns[cbi], cbi);
+      }
+    } catch (e) { /* ignore */ }
 
-  // Safety: if the card opens very late (or not at all due to no arrival scene),
-  // still run after 3s so content is never hidden.
-  setTimeout(function () {
-    if (!window.__scenesRan) {
-      window.__scenesRan = true;
-      run();
-    }
-  }, 3200);
-};
+    /* ============================================================
+       RSVP — WhatsApp
+       ============================================================ */
+    try {
+      var rsvpBtn = document.getElementById("rsvpBtn");
+      if (rsvpBtn) {
+        on(rsvpBtn, "click", function (e) {
+          try {
+            var num = (DATA.rsvp && DATA.rsvp.whatsapp) ? String(DATA.rsvp.whatsapp) : "";
+            var digits = num.replace(/\D/g, "");
+            var mainName = "the wedding";
+            if (DATA.events) {
+              for (var i = 0; i < DATA.events.length; i++) {
+                if (DATA.events[i] && DATA.events[i].isMain) { mainName = DATA.events[i].name || mainName; break; }
+              }
+            }
+            var guest = (card.guestName || "").trim();
+            var msg = "Assalamu Alaikum, I will attend " + mainName + ".";
+            if (guest) msg += " - " + guest;
+            var href = "https://wa.me/" + digits + "?text=" + encodeURIComponent(msg);
+            window.open(href, "_blank", "noopener");
+          } catch (err) {}
+          if (e && e.preventDefault) e.preventDefault();
+        });
+      }
+    } catch (e) { /* ignore */ }
 
+    /* ============================================================
+       SHARE
+       ============================================================ */
+    try {
+      var shareBtn = document.getElementById("shareBtn");
+      if (shareBtn) {
+        on(shareBtn, "click", function () {
+          try {
+            var title = document.title || "Wedding Invitation";
+            var url = location.href;
+            if (navigator.share) {
+              navigator.share({ title: title, url: url }).catch(function () {});
+            } else if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(url).then(function () {
+                showShareMsg("Link copied");
+              }).catch(function () { legacyCopy(url); });
+            } else {
+              legacyCopy(url);
+            }
+          } catch (e) {}
+        });
+        function legacyCopy(text) {
+          try {
+            var ta = document.createElement("textarea");
+            ta.value = text;
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = false;
+            try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+            document.body.removeChild(ta);
+            showShareMsg(ok ? "Link copied" : "Copy the link from the address bar");
+          } catch (e) {
+            showShareMsg("Copy the link from the address bar");
+          }
+        }
+        function showShareMsg(msg) {
+          try {
+            var n = document.createElement("div");
+            n.textContent = msg;
+            n.style.cssText = "position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(42,15,30,.95);color:#F0D58A;padding:10px 18px;border-radius:999px;font-size:14px;z-index:50;border:1px solid #C9A24B;";
+            document.body.appendChild(n);
+            setTimeout(function () {
+              try { n.style.transition = "opacity .4s ease"; n.style.opacity = "0"; } catch (e) {}
+              setTimeout(function () { try { if (n.parentNode) n.parentNode.removeChild(n); } catch (e) {} }, 500);
+            }, 1600);
+          } catch (e) {}
+        }
+      }
+    } catch (e) { /* ignore */ }
+  };
+})();
 // END OF FILE card-scenes.js
