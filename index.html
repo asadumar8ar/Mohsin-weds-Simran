@@ -1,663 +1,1123 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 <title>Nikah Card Builder</title>
-
-<!-- The only external resource allowed: Google Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&amp;family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&amp;family=Great+Vibes&amp;family=Noto+Nastaliq+Urdu:wght@400;600&amp;family=Reem+Kufi:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
-
+<link href="https://fonts.googleapis.com/css2?family=Pinyon+Script&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Amiri:ital,wght@0,400;0,700;1,400&family=Reem+Kufi:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  /* ---------- tiny reset ---------- */
-  *, *::before, *::after { box-sizing: border-box; }
-  [hidden] { display: none !important; }
-
-  html, body { height: 100%; }
-
-  body {
-    margin: 0;
-    min-height: 100%;
-    font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
-    font-size: 16px;
-    line-height: 1.5;
-    color: #e9f2ec;
-    background: #020b08;
-    background-image:
-      radial-gradient(900px 520px at 50% -12%, #0e4030 0%, rgba(4,21,15,0) 62%),
-      radial-gradient(700px 420px at 92% 108%, #0a2b21 0%, rgba(2,11,8,0) 60%),
-      linear-gradient(180deg, #04150f 0%, #020b08 100%);
-    background-attachment: fixed;
-    -webkit-font-smoothing: antialiased;
+  :root {
+    --plum-deep: #2A0E1C;
+    --plum: #3A1426;
+    --plum-mid: #4A1E32;
+    --rose-dust: #D9A0A6;
+    --rose-deep: #8E2E4A;
+    --gold: #C9A24B;
+    --gold-light: #F0D58A;
+    --gold-dim: #8A6E32;
+    --ivory: #FAF3EA;
+    --ink: #3A1426;
+    --ink-soft: #6B4556;
+    --panel: #1E0A14;
+    --panel-2: #2B101C;
+    --border: rgba(201,162,75,0.28);
+    --border-strong: rgba(201,162,75,0.55);
+    --ok: #7BC47F;
+    --err: #E05A6E;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --font-body: 'Cormorant Garamond', Georgia, serif;
+    --font-display: 'Pinyon Script', cursive;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --shadow-1: 0 2px 8px rgba(0,0,0,0.35);
+    --shadow-2: 0 8px 28px rgba(0,0,0,0.45);
   }
 
-  /* ---------- loader ---------- */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    font-family: var(--font-ui);
+    background:
+      radial-gradient(1200px 800px at 15% 0%, rgba(142,46,74,0.25), transparent 60%),
+      radial-gradient(1000px 700px at 90% 10%, rgba(201,162,75,0.10), transparent 55%),
+      linear-gradient(160deg, var(--plum-deep) 0%, var(--plum) 55%, #220B17 100%);
+    color: var(--ivory);
+    min-height: 100vh;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Header ---------- */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(30,10,20,0.85), rgba(30,10,20,0.55));
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    flex-wrap: wrap;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, var(--gold-light), var(--gold) 45%, var(--gold-dim) 100%);
+    box-shadow: 0 0 0 1px rgba(240,213,138,0.35), 0 0 18px rgba(201,162,75,0.35);
+    position: relative;
+  }
+  .brand-mark::after {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border-radius: 50%;
+    border: 1px solid rgba(58,20,38,0.55);
+  }
+  .brand-title {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: 0.14em;
+    color: var(--gold-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .header-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+
+  .btn {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    color: var(--ivory);
+    cursor: pointer;
+    transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:hover { background: rgba(201,162,75,0.12); border-color: var(--gold); }
+  .btn:active { transform: scale(0.97); }
+  .btn:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 2px; }
+  .btn-primary {
+    background: linear-gradient(180deg, var(--gold-light), var(--gold) 60%, #B08A3A);
+    color: #2A0E1C;
+    border-color: var(--gold-light);
+    box-shadow: 0 4px 16px rgba(201,162,75,0.30);
+  }
+  .btn-primary:hover { background: linear-gradient(180deg, #FBE6A8, var(--gold-light) 60%, var(--gold)); }
+  .btn-danger { border-color: rgba(224,90,110,0.5); color: #F3B9C2; }
+  .btn-danger:hover { background: rgba(224,90,110,0.14); border-color: var(--err); }
+
+  /* ---------- Loader ---------- */
   #loader {
     position: fixed;
-    left: 0; top: 0; right: 0; bottom: 0;
-    z-index: 100;
+    inset: 0;
+    z-index: 200;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 20px;
-    text-align: center;
-    padding: 24px;
-    background: radial-gradient(circle at 50% 42%, #0d3a2a 0%, #04150f 68%, #020b08 100%);
-    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
-    letter-spacing: 0.09em;
-    color: #f2d98a;
+    gap: 18px;
+    background: linear-gradient(160deg, #2A0E1C 0%, #3A1426 60%, #220B17 100%);
+    color: var(--gold-light);
+    transition: opacity 500ms ease, visibility 500ms ease;
   }
+  #loader.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
   .loader-ring {
     width: 54px;
     height: 54px;
     border-radius: 50%;
-    border: 3px solid rgba(212, 175, 55, 0.22);
-    border-top-color: #f2d98a;
-    animation: nikahSpin 1s linear infinite;
-  }
-  #loader p { margin: 0; font-size: 14px; }
-  @keyframes nikahSpin { to { transform: rotate(360deg); } }
-
-  /* ---------- error box ---------- */
-  #errorBox {
+    border: 2px solid rgba(201,162,75,0.25);
+    border-top-color: var(--gold-light);
+    animation: spin 1s linear infinite;
     position: relative;
-    z-index: 60;
-    margin: 14px 20px 0;
+  }
+  .loader-ring::after {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(240,213,138,0.25);
+    border-bottom-color: var(--gold);
+    animation: spin 1.6s linear infinite reverse;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loader-text {
+    font-family: var(--font-body);
+    font-size: 15px;
+    letter-spacing: 0.06em;
+    color: var(--rose-dust);
+  }
+
+  /* ---------- Error box ---------- */
+  #errorBox {
+    display: none;
+    margin: 16px 20px 0;
     padding: 14px 16px;
-    border-radius: 12px;
-    background: #3a0d10;
-    border: 1px solid #ff6b6b;
-    color: #ffd9d9;
-    font-family: ui-monospace, Menlo, Consolas, 'Courier New', monospace;
+    border-radius: var(--radius);
+    background: rgba(224,90,110,0.12);
+    border: 1px solid rgba(224,90,110,0.5);
+    color: #FFD9DF;
     font-size: 13px;
-    line-height: 1.55;
+    line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-word;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   }
+  #errorBox.visible { display: block; }
+  #errorBox strong { color: #FFB3BF; display: block; margin-bottom: 4px; font-size: 13px; }
+  #errorBox code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; background: rgba(0,0,0,0.25); padding: 1px 5px; border-radius: 4px; }
 
-  /* ---------- header ---------- */
-  .app-header {
-    position: sticky;
-    top: 0;
-    z-index: 30;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 13px 20px;
-    background: rgba(4, 20, 15, 0.94);
-    border-bottom: 1px solid rgba(212, 175, 55, 0.28);
-  }
-  .app-header h1 {
-    margin: 0;
-    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
-    font-weight: 600;
-    font-size: 15px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: #f2d98a;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 0 0 auto;
-  }
-
-  /* ---------- buttons ---------- */
-  .btn {
-    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
-    font-size: 13px;
-    letter-spacing: 0.06em;
-    padding: 9px 16px;
-    border-radius: 999px;
-    border: 1px solid rgba(212, 175, 55, 0.55);
-    background: transparent;
-    color: #f2d98a;
-    cursor: pointer;
-    transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
-  }
-  .btn:hover { background: rgba(212, 175, 55, 0.14); }
-  .btn:active { transform: translateY(1px); }
-  .btn:focus-visible { outline: 2px solid #f2d98a; outline-offset: 2px; }
-  .btn-gold {
-    background: linear-gradient(180deg, #f6dd94 0%, #d4af37 100%);
-    color: #08251b;
-    border-color: #d4af37;
-    font-weight: 600;
-  }
-  .btn-gold:hover { background: linear-gradient(180deg, #ffe9ab 0%, #e0bd4c 100%); }
-  .btn-sm { font-size: 11px; padding: 5px 10px; letter-spacing: 0.04em; }
-  .danger { border-color: rgba(255, 107, 107, 0.6); color: #ffb3b3; }
-  .danger:hover { background: rgba(255, 107, 107, 0.14); }
-
-  /* ---------- layout ---------- */
+  /* ---------- Layout ---------- */
   .app-main {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 460px;
-    gap: 24px;
-    align-items: start;
-    max-width: 1400px;
+    grid-template-columns: minmax(320px, 460px) 1fr;
+    gap: 20px;
+    padding: 20px;
+    max-width: 1440px;
     margin: 0 auto;
-    padding: 22px 20px 48px;
+    align-items: start;
   }
 
-  /* ---------- editor panel ---------- */
+  /* ---------- Editor panel ---------- */
   #editor {
-    background: linear-gradient(180deg, rgba(11, 45, 34, 0.92) 0%, rgba(6, 26, 20, 0.96) 100%);
-    border: 1px solid rgba(212, 175, 55, 0.26);
-    border-radius: 16px;
-    padding: 16px;
-    max-height: calc(100vh - 108px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    box-shadow: 0 18px 46px rgba(0, 0, 0, 0.42);
-  }
-  #editor::-webkit-scrollbar { width: 9px; }
-  #editor::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); border-radius: 9px; }
-  #editor::-webkit-scrollbar-thumb {
-    background: rgba(212, 175, 55, 0.35);
-    border-radius: 9px;
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-2);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 100px);
   }
 
-  .sheet-handle { display: none; }
-  .sheet-grip {
-    width: 46px;
-    height: 5px;
-    border-radius: 3px;
-    background: rgba(212, 175, 55, 0.5);
-    margin: 0 auto 12px;
-  }
-
-  /* ---------- tabs ---------- */
   .tabs {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 0 0 14px;
-    padding: 0 0 12px;
-    border-bottom: 1px solid rgba(212, 175, 55, 0.18);
+    gap: 2px;
+    padding: 6px 8px 0;
+    background: rgba(0,0,0,0.25);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gold-dim) transparent;
+    -webkit-overflow-scrolling: touch;
   }
-  .tab {
-    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
+  .tabs::-webkit-scrollbar { height: 5px; }
+  .tabs::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
+  .tab-btn {
+    flex: 0 0 auto;
+    font-family: var(--font-ui);
     font-size: 12px;
-    padding: 7px 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(212, 175, 55, 0.28);
-    background: rgba(255, 255, 255, 0.03);
-    color: #c9d8cf;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
-  }
-  .tab:hover { color: #f2d98a; border-color: rgba(212, 175, 55, 0.62); }
-  .tab:focus-visible { outline: 2px solid #f2d98a; outline-offset: 2px; }
-  .tab.active {
-    background: linear-gradient(180deg, #f6dd94 0%, #d4af37 100%);
-    color: #08251b;
-    border-color: #d4af37;
     font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 9px 12px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    background: transparent;
+    color: var(--rose-dust);
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tab-btn:hover { color: var(--ivory); background: rgba(201,162,75,0.08); }
+  .tab-btn.active {
+    color: var(--gold-light);
+    background: linear-gradient(180deg, rgba(201,162,75,0.14), rgba(201,162,75,0.04));
+    border-color: var(--border);
+    border-bottom-color: transparent;
+    position: relative;
+  }
+  .tab-btn.active::after {
+    content: "";
+    position: absolute;
+    left: 12px; right: 12px; bottom: -1px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+  .tab-btn:focus-visible { outline: 2px solid var(--gold-light); outline-offset: -2px; }
+
+  .tab-panels {
+    overflow-y: auto;
+    padding: 18px 16px 22px;
+    flex: 1 1 auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gold-dim) transparent;
+  }
+  .tab-panels::-webkit-scrollbar { width: 6px; }
+  .tab-panels::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
+
+  .tab-panel { display: none; animation: panelIn 260ms ease; }
+  .tab-panel.active { display: block; }
+  @keyframes panelIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
-  /* ---------- panels ---------- */
-  .panel { display: none; }
-  .panel.active { display: block; }
+  /* ---------- Form fields ---------- */
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .field-row { display: flex; gap: 10px; }
+  .field-row > .field { flex: 1 1 0; min-width: 0; }
 
-  /* ---------- form controls ---------- */
-  .field { margin-bottom: 12px; }
-  .field > label,
-  .field-label {
+  label.field-label {
     display: block;
-    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
-    font-size: 11px;
-    letter-spacing: 0.08em;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: #8fb3a3;
-    margin-bottom: 5px;
+    color: var(--gold);
+    margin-bottom: 6px;
   }
+  .field-hint {
+    font-size: 11.5px;
+    color: var(--rose-dust);
+    opacity: 0.85;
+    margin-top: 5px;
+    line-height: 1.5;
+  }
+  .field-hint.warn { color: #F0B86A; }
+  .field-hint.err { color: #F390A0; }
+
   input[type="text"],
+  input[type="url"],
+  input[type="tel"],
   input[type="date"],
   input[type="time"],
-  input[type="tel"],
-  input[type="url"],
   input[type="number"],
-  input[type="search"],
   textarea,
   select {
     width: 100%;
-    padding: 9px 11px;
-    border-radius: 9px;
-    border: 1px solid rgba(212, 175, 55, 0.22);
-    background: rgba(2, 16, 11, 0.72);
-    color: #eaf4ee;
-    font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 16px;
-    line-height: 1.35;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    color: var(--ivory);
+    background: rgba(0,0,0,0.28);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+    -webkit-appearance: none;
+    appearance: none;
   }
-  textarea { min-height: 72px; resize: vertical; }
-  input:hover, textarea:hover, select:hover { border-color: rgba(212, 175, 55, 0.42); }
+  input:hover, textarea:hover, select:hover { border-color: rgba(201,162,75,0.45); }
   input:focus, textarea:focus, select:focus {
     outline: none;
-    border-color: #d4af37;
-    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.18);
+    border-color: var(--gold);
+    background: rgba(0,0,0,0.38);
+    box-shadow: 0 0 0 3px rgba(201,162,75,0.16);
   }
-  input::placeholder, textarea::placeholder { color: #5f7f70; }
+  input::placeholder, textarea::placeholder { color: rgba(217,160,166,0.45); }
+  textarea { resize: vertical; min-height: 78px; line-height: 1.55; }
+  select option { background: var(--panel); color: var(--ivory); }
+  input[type="date"], input[type="time"] { color-scheme: dark; }
 
-  input[type="file"] {
-    width: 100%;
-    font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 14px;
-    color: #b9cdc3;
-    padding: 8px 0;
-  }
-  input[type="file"]::file-selector-button {
-    font-family: 'Reem Kufi', sans-serif;
-    font-size: 11px;
-    letter-spacing: 0.05em;
-    padding: 7px 12px;
-    margin-right: 10px;
-    border-radius: 999px;
-    border: 1px solid rgba(212, 175, 55, 0.5);
-    background: rgba(212, 175, 55, 0.12);
-    color: #f2d98a;
-    cursor: pointer;
-  }
-
-  input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: #d4af37;
-    cursor: pointer;
-    flex: 0 0 auto;
-  }
-
-  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-
-  .switch-row {
+  .checkbox-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
     padding: 9px 0;
-    border-bottom: 1px dashed rgba(212, 175, 55, 0.14);
   }
-  .switch-row span {
-    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
-    font-size: 12px;
-    color: #c9d8cf;
+  .checkbox-row input[type="checkbox"] {
+    width: 18px; height: 18px;
+    accent-color: var(--gold);
+    flex: 0 0 auto;
+    cursor: pointer;
   }
-
-  .hint {
-    font-family: 'Cormorant Garamond', Georgia, serif;
+  .checkbox-row label {
     font-size: 13.5px;
-    line-height: 1.45;
-    color: #7fa392;
-    margin: 4px 0 12px;
+    color: var(--ivory);
+    cursor: pointer;
+    user-select: none;
   }
 
-  /* ---------- event / repeatable item cards ---------- */
-  .item-card {
-    border: 1px solid rgba(212, 175, 55, 0.22);
-    border-radius: 12px;
-    padding: 10px 11px;
-    margin-bottom: 10px;
-    background: rgba(255, 255, 255, 0.025);
+  .section-heading {
+    font-family: var(--font-body);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--gold-light);
+    margin: 20px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: 0.02em;
   }
-  .item-head {
+  .section-heading:first-child { margin-top: 0; }
+
+  /* ---------- Events list ---------- */
+  .ev-list { display: flex; flex-direction: column; gap: 10px; }
+  .ev-item {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: rgba(0,0,0,0.22);
+    overflow: hidden;
+    transition: border-color 160ms ease;
+  }
+  .ev-item.is-main { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(201,162,75,0.25) inset; }
+  .ev-head {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 9px;
+    padding: 10px 12px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
-  .item-title {
+  .ev-head:hover { background: rgba(201,162,75,0.06); }
+  .ev-head:focus-visible { outline: 2px solid var(--gold-light); outline-offset: -2px; }
+  .ev-caret {
+    flex: 0 0 auto;
+    width: 16px; height: 16px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--gold);
+    transition: transform 200ms ease;
+  }
+  .ev-item.open .ev-caret { transform: rotate(90deg); }
+  .ev-title {
     flex: 1 1 auto;
-    min-width: 90px;
-    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
-    font-size: 13px;
-    color: #f2d98a;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ivory);
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    min-width: 0;
   }
-  .badge-main {
-    background: linear-gradient(180deg, #f6dd94 0%, #d4af37 100%);
-    color: #08251b;
-    font-family: 'Reem Kufi', sans-serif;
-    font-size: 10px;
-    letter-spacing: 0.06em;
-    padding: 3px 8px;
-    border-radius: 999px;
-    white-space: nowrap;
-  }
-  .btn-row { display: flex; flex-wrap: wrap; gap: 6px; }
-
-  /* ---------- theme picker ---------- */
-  .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .theme-btn {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 10px;
-    border-radius: 11px;
-    border: 1px solid rgba(212, 175, 55, 0.25);
-    background: rgba(255, 255, 255, 0.03);
-    color: #dfeae4;
-    cursor: pointer;
-    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
-    font-size: 12px;
-    text-align: left;
-  }
-  .theme-btn:hover { border-color: rgba(212, 175, 55, 0.6); }
-  .theme-btn:focus-visible { outline: 2px solid #f2d98a; outline-offset: 2px; }
-  .theme-btn.active {
-    border-color: #d4af37;
-    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.24);
-  }
-  .swatch {
+  .ev-badge {
     flex: 0 0 auto;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.28);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #2A0E1C;
+    background: var(--gold);
+    padding: 2px 8px;
+    border-radius: 999px;
   }
+  .ev-body {
+    display: none;
+    padding: 4px 12px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .ev-item.open .ev-body { display: block; animation: panelIn 220ms ease; }
+  .ev-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(201,162,75,0.22);
+  }
+  .btn-sm {
+    font-family: var(--font-ui);
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 6px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--ivory);
+    cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-sm:hover { background: rgba(201,162,75,0.10); border-color: var(--gold); }
+  .btn-sm:active { transform: scale(0.96); }
+  .btn-sm:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 2px; }
+  .btn-sm.danger { border-color: rgba(224,90,110,0.4); color: #F3B9C2; }
+  .btn-sm.danger:hover { background: rgba(224,90,110,0.12); border-color: var(--err); }
+  .btn-sm.accent { border-color: var(--gold); color: var(--gold-light); }
+  .btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* ---------- photo grid ---------- */
-  .photo-grid {
+  .add-btn {
+    width: 100%;
+    margin-top: 12px;
+    padding: 11px;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--border-strong);
+    background: transparent;
+    color: var(--gold-light);
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .add-btn:hover { background: rgba(201,162,75,0.08); border-color: var(--gold); }
+  .add-btn:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 2px; }
+
+  /* ---------- Media / upload ---------- */
+  .upload-box {
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    text-align: center;
+    background: rgba(0,0,0,0.18);
+    transition: border-color 160ms ease, background 160ms ease;
+    cursor: pointer;
+  }
+  .upload-box:hover { border-color: var(--gold); background: rgba(201,162,75,0.06); }
+  .upload-box input[type="file"] { display: none; }
+  .upload-box .up-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gold-light);
+    display: block;
+    margin-bottom: 3px;
+  }
+  .upload-box .up-sub { font-size: 11.5px; color: var(--rose-dust); }
+
+  .thumb-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
     gap: 8px;
     margin-top: 10px;
   }
-  .photo-cell {
+  .thumb {
     position: relative;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid rgba(212, 175, 55, 0.3);
-    background: #02100b;
     aspect-ratio: 1 / 1;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: rgba(0,0,0,0.3);
   }
-  .photo-cell img {
-    display: block;
-    width: 100%;
-    height: 100%;
+  .thumb img {
+    width: 100%; height: 100%;
     object-fit: cover;
+    display: block;
   }
-  .photo-cell .photo-remove {
+  .thumb-del {
     position: absolute;
-    top: 3px;
-    right: 3px;
-    width: 22px;
-    height: 22px;
-    line-height: 1;
-    padding: 0;
+    top: 4px; right: 4px;
+    width: 22px; height: 22px;
     border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    background: rgba(20, 4, 6, 0.82);
-    color: #ffd9d9;
+    border: none;
+    background: rgba(0,0,0,0.7);
+    color: #FFD9DF;
     font-size: 14px;
+    line-height: 1;
     cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 140ms ease, transform 140ms ease;
   }
-  .photo-cell .photo-remove:hover { background: #7a1b1b; }
+  .thumb-del:hover { background: var(--err); transform: scale(1.08); }
+  .thumb-del:focus-visible { outline: 2px solid var(--gold-light); }
 
-  /* ---------- note + save indicator ---------- */
-  .note {
-    margin: 16px 0 0;
-    padding: 11px 13px;
-    border-left: 3px solid #d4af37;
-    border-radius: 0 10px 10px 0;
-    background: rgba(212, 175, 55, 0.08);
-    font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 13.5px;
-    line-height: 1.5;
-    color: #cfe0d7;
+  .img-preview {
+    margin-top: 10px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: rgba(0,0,0,0.25);
+    max-height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
-  .save-note {
-    margin: 12px 0 0;
-    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
-    font-size: 11px;
-    letter-spacing: 0.07em;
-    color: #6f9c88;
-    transition: color 0.3s ease;
-  }
-  .save-note.flash { color: #f2d98a; }
+  .img-preview img { max-width: 100%; max-height: 160px; display: block; }
 
-  /* ---------- preview / phone ---------- */
-  .preview-wrap {
+  .audio-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: rgba(0,0,0,0.22);
+    border: 1px solid var(--border);
+  }
+  .audio-row .audio-name {
+    flex: 1 1 auto;
+    font-size: 12.5px;
+    color: var(--ivory);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .audio-row audio { max-width: 160px; height: 32px; }
+
+  /* ---------- Guest link ---------- */
+  .guest-link-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .guest-link-row input { flex: 1 1 auto; font-size: 12.5px; }
+
+  /* ---------- Status / note ---------- */
+  .status-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--rose-dust);
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: rgba(201,162,75,0.06);
+    border: 1px solid var(--border);
+    margin-top: 14px;
+    line-height: 1.55;
+  }
+  .status-note .dot {
+    flex: 0 0 auto;
+    width: 7px; height: 7px;
+    margin-top: 5px;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 6px rgba(123,196,127,0.6);
+  }
+  .status-note .dot.off { background: var(--rose-dust); box-shadow: none; }
+  .status-note strong { color: var(--gold-light); }
+
+  .help-note {
+    font-size: 11.5px;
+    color: var(--rose-dust);
+    opacity: 0.85;
+    margin-top: 10px;
+    line-height: 1.6;
+    padding: 10px 12px;
+    background: rgba(0,0,0,0.18);
+    border-radius: var(--radius-sm);
+    border-left: 2px solid var(--gold-dim);
+  }
+
+  /* ---------- Theme swatches ---------- */
+  .theme-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .theme-swatch {
+    position: relative;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 12px;
+    cursor: pointer;
+    text-align: left;
+    background: transparent;
+    transition: border-color 160ms ease, transform 160ms ease;
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+  }
+  .theme-swatch:hover { transform: translateY(-1px); border-color: var(--gold); }
+  .theme-swatch:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 2px; }
+  .theme-swatch.active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,162,75,0.25); }
+  .swatch-colors {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+  .swatch-colors span {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.18);
+  }
+  .swatch-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ivory);
+    letter-spacing: 0.02em;
+  }
+
+  /* ---------- Preview side ---------- */
+  .preview-side {
     position: sticky;
-    top: 88px;
+    top: 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 14px;
   }
   .phone {
-    position: relative;
-    width: 100%;
-    max-width: 390px;
-    height: min(76vh, 800px);
-    padding: 10px;
-    border-radius: 38px;
-    border: 1px solid rgba(212, 175, 55, 0.38);
-    background: #03100c;
+    width: min(390px, 100%);
+    aspect-ratio: 9 / 18.5;
+    max-height: calc(100vh - 120px);
+    border-radius: 42px;
+    background: #120609;
+    padding: 12px;
     box-shadow:
-      0 26px 60px rgba(0, 0, 0, 0.55),
-      0 0 0 8px rgba(212, 175, 55, 0.06),
-      0 0 40px rgba(212, 175, 55, 0.08);
+      0 0 0 1px rgba(201,162,75,0.35),
+      0 0 0 8px #1a0a12,
+      0 0 0 9px rgba(201,162,75,0.20),
+      0 30px 60px rgba(0,0,0,0.6);
+    position: relative;
+  }
+  .phone::before {
+    content: "";
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 110px;
+    height: 20px;
+    border-radius: 12px;
+    background: #120609;
+    z-index: 3;
+  }
+  .phone-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 32px;
+    overflow: hidden;
+    background: var(--plum);
+    position: relative;
   }
   #previewFrame {
-    display: block;
     width: 100%;
     height: 100%;
     border: 0;
-    border-radius: 28px;
-    background: #06231a;
+    display: block;
+    background: var(--ivory);
   }
-  .preview-label {
-    font-family: 'Reem Kufi', 'Cormorant Garamond', sans-serif;
-    font-size: 11px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #6f9c88;
-  }
-
-  /* ---------- mobile edit button + backdrop ---------- */
-  .edit-fab {
-    position: fixed;
-    right: 16px;
-    bottom: 16px;
-    z-index: 46;
-    display: none;
-    align-items: center;
-    gap: 6px;
-    padding: 12px 22px;
-    border-radius: 999px;
-    border: 1px solid #d4af37;
-    background: linear-gradient(180deg, #f6dd94 0%, #d4af37 100%);
-    color: #08251b;
-    font-family: 'Reem Kufi', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
+  .preview-caption {
+    font-size: 12px;
+    color: var(--rose-dust);
+    text-align: center;
     letter-spacing: 0.04em;
-    cursor: pointer;
-    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.52);
   }
-  .edit-fab:focus-visible { outline: 2px solid #f2d98a; outline-offset: 3px; }
 
-  .sheet-backdrop {
+  /* ---------- Mobile Edit button ---------- */
+  #mobileEditBtn {
+    display: none;
     position: fixed;
-    left: 0; top: 0; right: 0; bottom: 0;
-    z-index: 44;
-    background: rgba(0, 0, 0, 0.62);
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 80;
+    padding: 13px 26px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    border: 1px solid var(--gold-light);
+    background: linear-gradient(180deg, var(--gold-light), var(--gold) 65%, #B08A3A);
+    color: #2A0E1C;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.55), 0 0 0 1px rgba(240,213,138,0.3);
+    cursor: pointer;
+    transition: transform 160ms ease, box-shadow 160ms ease;
+    -webkit-tap-highlight-color: transparent;
   }
+  #mobileEditBtn:active { transform: translateX(-50%) scale(0.96); }
+  #mobileEditBtn:focus-visible { outline: 2px solid var(--ivory); outline-offset: 3px; }
 
-  /* ---------- mobile layout (under 800px) ---------- */
-  @media (max-width: 799px) {
-    .app-header { padding: 11px 14px; }
-    .app-header h1 { font-size: 12.5px; letter-spacing: 0.12em; }
-    .btn { font-size: 12px; padding: 8px 13px; }
+  #editorBackdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,4,8,0.62);
+    z-index: 95;
+    opacity: 0;
+    transition: opacity 260ms ease;
+  }
+  #editorBackdrop.visible { display: block; opacity: 1; }
 
+  /* ---------- Responsive ---------- */
+  @media (max-width: 900px) {
     .app-main {
-      grid-template-columns: minmax(0, 1fr);
-      padding: 12px 12px 96px;
-      gap: 14px;
+      grid-template-columns: 1fr;
+      padding: 14px;
+      gap: 16px;
     }
-
-    .preview-wrap { position: static; }
+    .preview-side {
+      position: relative;
+      top: 0;
+      order: -1;
+    }
     .phone {
-      max-width: 340px;
-      height: 64vh;
-      min-height: 420px;
-      border-radius: 30px;
-      padding: 8px;
+      width: min(340px, 92vw);
+      max-height: 68vh;
+      border-radius: 36px;
+      padding: 10px;
     }
-    #previewFrame { border-radius: 22px; }
+    .phone-inner { border-radius: 28px; }
 
-    /* the editor becomes a bottom sheet */
     #editor {
       position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      left: 0; right: 0; bottom: 0;
       top: auto;
-      z-index: 45;
       max-height: 82vh;
-      max-width: none;
-      margin: 0;
-      border-radius: 18px 18px 0 0;
-      border-left: 0;
-      border-right: 0;
-      border-bottom: 0;
-      padding: 12px 14px 26px;
-      box-shadow: 0 -22px 54px rgba(0, 0, 0, 0.66);
+      border-radius: 20px 20px 0 0;
+      z-index: 100;
       transform: translateY(105%);
-      transition: transform 0.28s ease;
+      transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+      will-change: transform;
     }
-    #editor.open { transform: translateY(0); }
-
-    .sheet-handle { display: block; }
-    .edit-fab { display: inline-flex; }
-
-    .row2 { grid-template-columns: 1fr; }
-    .theme-grid { grid-template-columns: 1fr 1fr; }
+    #editor.sheet-open { transform: translateY(0); }
+    #editor::before {
+      content: "";
+      display: block;
+      width: 42px; height: 4px;
+      border-radius: 2px;
+      background: rgba(201,162,75,0.4);
+      margin: 8px auto 4px;
+      flex: 0 0 auto;
+    }
+    #mobileEditBtn { display: block; }
   }
 
-  @media (max-width: 380px) {
+  @media (max-width: 480px) {
+    .app-header { padding: 10px 12px; }
+    .brand-title { font-size: 14px; letter-spacing: 0.10em; }
+    .btn { padding: 8px 12px; font-size: 12px; }
+    .header-actions { gap: 6px; }
+    .tab-btn { font-size: 11px; padding: 8px 10px; }
+    .tab-panels { padding: 14px 12px 22px; }
+    .field-row { flex-direction: column; gap: 0; }
     .theme-grid { grid-template-columns: 1fr; }
-    .photo-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
 
-  /* respect users who dislike motion */
+  /* ---------- Reduced motion ---------- */
   @media (prefers-reduced-motion: reduce) {
-    .loader-ring { animation: none; }
-    #editor { transition: none; }
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  /* Visually hidden helper */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
   }
 </style>
 </head>
-
 <body>
 
-<!-- Full screen loading state, hidden by builder.js in a finally block -->
+<!-- Loader -->
 <div id="loader" role="status" aria-live="polite">
   <div class="loader-ring" aria-hidden="true"></div>
-  <p>Preparing your card...</p>
+  <div class="loader-text">Preparing your card...</div>
 </div>
 
-<!-- Errors (missing files, runtime problems) are printed here -->
-<div id="errorBox" role="alert" hidden></div>
+<!-- Error box -->
+<div id="errorBox" role="alert" aria-live="assertive"></div>
 
+<!-- Header -->
 <header class="app-header">
-  <h1>Nikah Card Builder</h1>
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true"></div>
+    <div class="brand-title">NIKAH CARD BUILDER</div>
+  </div>
   <div class="header-actions">
-    <button id="resetBtn" class="btn" type="button" aria-label="Reset the card and clear the draft">Reset</button>
-    <button id="downloadBtn" class="btn btn-gold" type="button" aria-label="Download the finished card as an HTML file">Download Card</button>
+    <button type="button" class="btn btn-danger" id="resetBtn">Reset</button>
+    <button type="button" class="btn btn-primary" id="downloadBtn">Download Card</button>
   </div>
 </header>
 
+<!-- Main layout -->
 <main class="app-main">
 
-  <!-- LEFT: the editor. builder.js fills every panel. -->
+  <!-- Editor panel -->
   <section id="editor" aria-label="Card editor">
-    <div class="sheet-handle" aria-hidden="true">
-      <div class="sheet-grip"></div>
+    <div class="tabs" role="tablist" aria-label="Editor sections">
+      <button type="button" class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-basic" data-tab="basic">Basic</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-events" data-tab="events">Events</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-story" data-tab="story">Story &amp; Photos</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-music" data-tab="music">Music</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-media" data-tab="media">Images &amp; Video</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-contacts" data-tab="contacts">Contacts &amp; RSVP</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-theme" data-tab="theme">Theme</button>
     </div>
 
-    <div class="tabs" id="tabs" role="tablist" aria-label="Editor sections">
-      <button class="tab active" type="button" role="tab" id="tab-basic" data-tab="basic"
-              aria-selected="true" aria-controls="panel-basic">Basic</button>
-      <button class="tab" type="button" role="tab" id="tab-events" data-tab="events"
-              aria-selected="false" aria-controls="panel-events">Events</button>
-      <button class="tab" type="button" role="tab" id="tab-story" data-tab="story"
-              aria-selected="false" aria-controls="panel-story">Story &amp; Photos</button>
-      <button class="tab" type="button" role="tab" id="tab-music" data-tab="music"
-              aria-selected="false" aria-controls="panel-music">Music</button>
-      <button class="tab" type="button" role="tab" id="tab-rsvp" data-tab="rsvp"
-              aria-selected="false" aria-controls="panel-rsvp">Contacts &amp; RSVP</button>
-      <button class="tab" type="button" role="tab" id="tab-theme" data-tab="theme"
-              aria-selected="false" aria-controls="panel-theme">Theme</button>
+    <div class="tab-panels">
+
+      <!-- BASIC -->
+      <div class="tab-panel active" id="tab-basic" role="tabpanel" aria-label="Basic details">
+        <div class="field">
+          <label class="field-label" for="f-seal">Seal initials</label>
+          <input type="text" id="f-seal" data-bind="seal" placeholder="M &amp; S" maxlength="14">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-host">Host family line</label>
+          <input type="text" id="f-host" data-bind="host" placeholder="Family Name &amp; family">
+        </div>
+        <div class="section-heading">The couple</div>
+        <div class="field">
+          <label class="field-label" for="f-p1name">Groom name</label>
+          <input type="text" id="f-p1name" data-bind="person1.name" placeholder="Groom Name" dir="auto">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-p1sub">Groom subtitle</label>
+          <input type="text" id="f-p1sub" data-bind="person1.sub" placeholder="Son of Mr. &amp; Mrs. ____" dir="auto">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-p2name">Bride name</label>
+          <input type="text" id="f-p2name" data-bind="person2.name" placeholder="Bride Name" dir="auto">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-p2sub">Bride subtitle</label>
+          <input type="text" id="f-p2sub" data-bind="person2.sub" placeholder="Daughter of Mr. &amp; Mrs. ____" dir="auto">
+        </div>
+
+        <div class="section-heading">Invitation text</div>
+        <div class="field">
+          <label class="field-label" for="f-inviteEn">English invitation</label>
+          <textarea id="f-inviteEn" data-bind="inviteEn" rows="3" dir="auto"></textarea>
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-inviteRoman">Roman Urdu invitation</label>
+          <textarea id="f-inviteRoman" data-bind="inviteRoman" rows="3" dir="auto"></textarea>
+        </div>
+
+        <div class="section-heading">Sacred words</div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-showAyah" data-bind="ayah.show">
+          <label for="f-showAyah">Show the Ayah in the card</label>
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-ayahText">Ayah (Arabic)</label>
+          <textarea id="f-ayahText" data-bind="ayah.text" rows="3" dir="rtl" style="font-family:'Amiri',serif;font-size:18px;line-height:1.9"></textarea>
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-ayahTrans">Ayah translation</label>
+          <textarea id="f-ayahTrans" data-bind="ayah.translation" rows="3" dir="auto"></textarea>
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-ayahRef">Ayah reference</label>
+          <input type="text" id="f-ayahRef" data-bind="ayah.reference">
+        </div>
+
+        <div class="section-heading">Closing words</div>
+        <div class="field">
+          <label class="field-label" for="f-thanks">Thanks line</label>
+          <textarea id="f-thanks" data-bind="footer.thanks" rows="2" dir="auto"></textarea>
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-family">Family line</label>
+          <input type="text" id="f-family" data-bind="footer.family" dir="auto">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-closing">Closing</label>
+          <input type="text" id="f-closing" data-bind="footer.closing" dir="auto">
+        </div>
+
+        <div class="status-note">
+          <span class="dot" id="draftDot"></span>
+          <span id="draftStatus">Draft saved automatically</span>
+        </div>
+
+        <div class="help-note">
+          Download, put the file in a folder as <strong style="color:var(--gold-light)">index.html</strong>, drag the folder to Netlify Drop (app.netlify.com/drop), share the link.
+        </div>
+      </div>
+
+      <!-- EVENTS -->
+      <div class="tab-panel" id="tab-events" role="tabpanel" aria-label="Events">
+        <p class="field-hint" style="margin-bottom:14px">Each event gets its own card. Tap an event to edit. Exactly one event is the <strong style="color:var(--gold-light)">main</strong> event (drives the countdown).</p>
+        <div class="ev-list" id="evList"></div>
+        <button type="button" class="add-btn" id="addEventBtn">+ Add another event</button>
+      </div>
+
+      <!-- STORY & PHOTOS -->
+      <div class="tab-panel" id="tab-story" role="tabpanel" aria-label="Story and photos">
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-storyShow" data-bind="story.show">
+          <label for="f-storyShow">Show "Our Story" section</label>
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-storyTitle">Story title</label>
+          <input type="text" id="f-storyTitle" data-bind="story.title" dir="auto">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-storyText">Story text</label>
+          <textarea id="f-storyText" data-bind="story.text" rows="5" dir="auto"></textarea>
+        </div>
+
+        <div class="section-heading">Gallery (up to 8 photos)</div>
+        <label class="upload-box" for="f-galleryInput">
+          <span class="up-label">Choose photos</span>
+          <span class="up-sub">They will be resized automatically</span>
+          <input type="file" id="f-galleryInput" accept="image/*" multiple>
+        </label>
+        <div class="thumb-grid" id="galleryGrid"></div>
+
+        <div class="section-heading">Dua</div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-duaShow" data-bind="dua.show">
+          <label for="f-duaShow">Show the Dua</label>
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-duaText">Dua (Arabic)</label>
+          <textarea id="f-duaText" data-bind="dua.text" rows="3" dir="rtl" style="font-family:'Amiri',serif;font-size:18px;line-height:1.9"></textarea>
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-duaTrans">Dua translation</label>
+          <textarea id="f-duaTrans" data-bind="dua.translation" rows="2" dir="auto"></textarea>
+        </div>
+      </div>
+
+      <!-- MUSIC -->
+      <div class="tab-panel" id="tab-music" role="tabpanel" aria-label="Music">
+        <p class="field-hint" style="margin-bottom:14px">Optional background music. It never autoplays — it starts only when your guest opens the invitation.</p>
+        <label class="upload-box" for="f-musicInput">
+          <span class="up-label">Choose an MP3 file</span>
+          <span class="up-sub">Keep it under 3 MB if possible</span>
+          <input type="file" id="f-musicInput" accept="audio/mpeg,audio/mp3">
+        </label>
+        <div id="musicPreview"></div>
+        <div class="field-hint warn" id="musicWarn" style="display:none"></div>
+        <div class="field" style="margin-top:14px">
+          <button type="button" class="btn-sm danger" id="removeMusicBtn" style="display:none">Remove music</button>
+        </div>
+      </div>
+
+      <!-- MEDIA -->
+      <div class="tab-panel" id="tab-media" role="tabpanel" aria-label="Images and video">
+        <div class="section-heading">Images (all optional)</div>
+
+        <div class="field">
+          <label class="field-label" for="f-heroImageInput">Hero backdrop</label>
+          <label class="upload-box" for="f-heroImageInput">
+            <span class="up-label">Choose hero image</span>
+            <span class="up-sub">Soft blurred backdrop</span>
+            <input type="file" id="f-heroImageInput" accept="image/*">
+          </label>
+          <div id="heroImagePreview"></div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="f-couplePhotoInput">Couple photo</label>
+          <label class="upload-box" for="f-couplePhotoInput">
+            <span class="up-label">Choose couple photo</span>
+            <span class="up-sub">Sits inside the arch frame</span>
+            <input type="file" id="f-couplePhotoInput" accept="image/*">
+          </label>
+          <div id="couplePhotoPreview"></div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="f-floralFrameInput">Floral frame (transparent PNG)</label>
+          <label class="upload-box" for="f-floralFrameInput">
+            <span class="up-label">Choose floral frame</span>
+            <span class="up-sub">Corners and parallax</span>
+            <input type="file" id="f-floralFrameInput" accept="image/png">
+          </label>
+          <div id="floralFramePreview"></div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="f-envelopeImageInput">Envelope image</label>
+          <label class="upload-box" for="f-envelopeImageInput">
+            <span class="up-label">Choose envelope image</span>
+            <span class="up-sub">Replaces the CSS envelope</span>
+            <input type="file" id="f-envelopeImageInput" accept="image/*">
+          </label>
+          <div id="envelopeImagePreview"></div>
+        </div>
+
+        <div class="section-heading">Background videos</div>
+        <div class="field">
+          <label class="field-label" for="f-videoOpening">Opening video</label>
+          <input type="text" id="f-videoOpening" data-bind="videoOpening" placeholder="opening.mp4 or https://...">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-videoMain">Main video</label>
+          <input type="text" id="f-videoMain" data-bind="videoMain" placeholder="main.mp4 or https://...">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-videoFinale">Finale video</label>
+          <input type="text" id="f-videoFinale" data-bind="videoFinale" placeholder="finale.mp4 or https://...">
+        </div>
+        <div class="field-hint">
+          Put the mp4 files in the same folder as index.html and type the file name, or paste an https link. Best: black background loops with gold particles, petals or fireworks.
+        </div>
+      </div>
+
+      <!-- CONTACTS & RSVP -->
+      <div class="tab-panel" id="tab-contacts" role="tabpanel" aria-label="Contacts and RSVP">
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-rsvpShow" data-bind="rsvp.show">
+          <label for="f-rsvpShow">Show the RSVP section</label>
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-whatsapp">WhatsApp number (with country code)</label>
+          <input type="tel" id="f-whatsapp" data-bind="rsvp.whatsapp" placeholder="91XXXXXXXXXX" inputmode="tel">
+          <div class="field-hint">Digits only, no + or spaces. Example: 919876543210</div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-rsvpNote">RSVP note</label>
+          <input type="text" id="f-rsvpNote" data-bind="rsvp.note" dir="auto">
+        </div>
+
+        <div class="section-heading">Contacts (up to 3)</div>
+        <div id="contactsList"></div>
+
+        <div class="section-heading">Guest link maker</div>
+        <p class="field-hint">Paste your published card URL and a guest's name to make a personal link.</p>
+        <div class="field">
+          <label class="field-label" for="f-pageUrl">Published page URL</label>
+          <input type="url" id="f-pageUrl" placeholder="https://your-card.netlify.app/">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-guestName">Guest name</label>
+          <input type="text" id="f-guestName" placeholder="Aunty Fatima" dir="auto">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-guestResult">Personal link</label>
+          <div class="guest-link-row">
+            <input type="text" id="f-guestResult" readonly placeholder="Your link appears here">
+            <button type="button" class="btn-sm accent" id="copyGuestBtn">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- THEME -->
+      <div class="tab-panel" id="tab-theme" role="tabpanel" aria-label="Theme">
+        <p class="field-hint" style="margin-bottom:14px">Choose a palette. Every theme keeps gold for ornaments only and deep plum for the arrival, corridor and finale.</p>
+        <div class="theme-grid" id="themeGrid"></div>
+      </div>
+
     </div>
-
-    <div class="panels" id="panels">
-      <div class="panel active" id="panel-basic" data-panel="basic" role="tabpanel"
-           aria-labelledby="tab-basic" tabindex="0"></div>
-      <div class="panel" id="panel-events" data-panel="events" role="tabpanel"
-           aria-labelledby="tab-events" tabindex="0"></div>
-      <div class="panel" id="panel-story" data-panel="story" role="tabpanel"
-           aria-labelledby="tab-story" tabindex="0"></div>
-      <div class="panel" id="panel-music" data-panel="music" role="tabpanel"
-           aria-labelledby="tab-music" tabindex="0"></div>
-      <div class="panel" id="panel-rsvp" data-panel="rsvp" role="tabpanel"
-           aria-labelledby="tab-rsvp" tabindex="0"></div>
-      <div class="panel" id="panel-theme" data-panel="theme" role="tabpanel"
-           aria-labelledby="tab-theme" tabindex="0"></div>
-    </div>
-
-    <p class="note" id="deployNote">
-      Download, put the file in a folder as index.html, drag the folder to Netlify Drop
-      (app.netlify.com/drop), share the link.
-    </p>
-
-    <p class="save-note" id="saveNote">Draft saved automatically</p>
   </section>
 
-  <!-- RIGHT: the live preview inside a phone shaped frame -->
-  <section class="preview-wrap" aria-label="Live preview">
+  <!-- Preview side -->
+  <aside class="preview-side" aria-label="Live preview">
     <div class="phone">
-      <iframe id="previewFrame"
-              title="Live preview of the Nikah card"
-              sandbox="allow-scripts allow-modals"></iframe>
+      <div class="phone-inner">
+        <iframe id="previewFrame" sandbox="allow-scripts allow-modals" title="Card preview"></iframe>
+      </div>
     </div>
-    <p class="preview-label">Live preview</p>
-  </section>
+    <p class="preview-caption">Live preview</p>
+  </aside>
 
 </main>
 
-<!-- Mobile: opens the bottom sheet editor -->
-<button id="editBtn" class="edit-fab" type="button" aria-label="Open the card editor">
-  Edit
-</button>
-<div id="sheetBackdrop" class="sheet-backdrop" hidden></div>
+<!-- Mobile edit button and backdrop -->
+<button type="button" id="mobileEditBtn" aria-label="Open editor">Edit</button>
+<div id="editorBackdrop"></div>
 
-<noscript>
-  <p style="padding:20px;color:#ffd9d9;font-family:monospace;">
-    This builder needs JavaScript enabled.
-  </p>
-</noscript>
-
-<!-- Load order matters: style, runtime, data/builder of the card, then the editor -->
+<!-- Scripts in the required order -->
 <script src="card-style.js"></script>
 <script src="card-runtime.js"></script>
+<script src="card-scenes.js"></script>
 <script src="card.js"></script>
 <script src="builder.js"></script>
 
-</body>
-</html>
 <!-- END OF FILE index.html -->
