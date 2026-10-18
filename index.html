@@ -1,71 +1,95 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nikah Card Builder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Pinyon+Script&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Amiri:ital,wght@0,400;0,700;1,400&family=Reem+Kufi:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Pinyon+Script&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Amiri:ital,wght@0,400;0,700;1,400&family=Reem+Kufi:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+/* BUILT-IN DETECTIVE: collect all errors so we can report them later. */
+window.__errs = [];
+window.__step = "start";
+(function () {
+  window.addEventListener("error", function (e) {
+    try {
+      if (e && e.target && (e.target.tagName === "SCRIPT" || e.target.tagName === "LINK" || e.target.tagName === "IMG")) {
+        var src = e.target.src || e.target.href || "(unknown)";
+        window.__errs.push("FILE LOAD FAILED: " + src);
+        return;
+      }
+      var msg = (e && e.message) ? e.message : "unknown error";
+      var file = (e && e.filename) ? e.filename.split("/").pop() : "unknown";
+      var line = (e && typeof e.lineno === "number") ? e.lineno : 0;
+      window.__errs.push("JS ERROR: " + msg + " [file: " + file + ", line: " + line + "]");
+    } catch (err) {
+      try { window.__errs.push("DETECTIVE FAILURE: " + (err && err.message ? err.message : String(err))); } catch (e2) {}
+    }
+  }, true);
+  window.addEventListener("unhandledrejection", function (e) {
+    try {
+      var r = e && e.reason;
+      var m = r && r.message ? r.message : String(r);
+      window.__errs.push("UNHANDLED REJECTION: " + m);
+    } catch (err) {}
+  });
+})();
+</script>
 <style>
+  /* ---- Builder shell: dark plum + gold ---- */
   :root {
-    --plum-deep: #2A0E1C;
-    --plum: #3A1426;
-    --plum-mid: #4A1E32;
-    --rose-dust: #D9A0A6;
-    --rose-deep: #8E2E4A;
+    --plum-bg: #2A0F1E;
+    --plum-deep: #1d0a15;
+    --plum-soft: #3a1426;
     --gold: #C9A24B;
     --gold-light: #F0D58A;
-    --gold-dim: #8A6E32;
     --ivory: #FAF3EA;
     --ink: #3A1426;
-    --ink-soft: #6B4556;
-    --panel: #1E0A14;
-    --panel-2: #2B101C;
-    --border: rgba(201,162,75,0.28);
-    --border-strong: rgba(201,162,75,0.55);
-    --ok: #7BC47F;
-    --err: #E05A6E;
+    --rose: #D9A0A6;
+    --deep-rose: #8E2E4A;
+    --danger: #b3261e;
+    --danger-bg: #2b0d10;
+    --ok: #6fbf73;
     --radius: 12px;
-    --radius-sm: 8px;
-    --font-body: 'Cormorant Garamond', Georgia, serif;
-    --font-display: 'Pinyon Script', cursive;
-    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    --shadow-1: 0 2px 8px rgba(0,0,0,0.35);
-    --shadow-2: 0 8px 28px rgba(0,0,0,0.45);
+    --panel-shadow: 0 20px 60px rgba(0,0,0,.45);
+    --font-body: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+    --font-display: "Pinyon Script", "Cormorant Garamond", serif;
+    --font-ui: "Cormorant Garamond", Georgia, serif;
   }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  html { -webkit-text-size-adjust: 100%; }
-
-  body {
-    font-family: var(--font-ui);
-    background:
-      radial-gradient(1200px 800px at 15% 0%, rgba(142,46,74,0.25), transparent 60%),
-      radial-gradient(1000px 700px at 90% 10%, rgba(201,162,75,0.10), transparent 55%),
-      linear-gradient(160deg, var(--plum-deep) 0%, var(--plum) 55%, #220B17 100%);
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--plum-bg);
     color: var(--ivory);
-    min-height: 100vh;
+    font-family: var(--font-ui);
+    font-size: 16px;
     line-height: 1.5;
-    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
   }
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(201,162,75,.14), transparent 60%),
+      radial-gradient(900px 500px at -10% 100%, rgba(217,160,166,.10), transparent 60%),
+      var(--plum-bg);
+  }
+  button { font-family: inherit; }
+  a { color: var(--gold-light); }
 
-  /* ---------- Header ---------- */
+  /* ---- Header ---- */
   .app-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 12px;
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--border);
-    background: linear-gradient(180deg, rgba(30,10,20,0.85), rgba(30,10,20,0.55));
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(201,162,75,.25);
+    background: linear-gradient(180deg, rgba(29,10,21,.9), rgba(42,15,30,.7));
     position: sticky;
     top: 0;
-    z-index: 50;
-    flex-wrap: wrap;
+    z-index: 20;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
   }
   .brand {
     display: flex;
@@ -74,1115 +98,868 @@
     min-width: 0;
   }
   .brand-mark {
-    width: 30px;
-    height: 30px;
+    width: 34px; height: 34px;
     flex: 0 0 auto;
     border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, var(--gold-light), var(--gold) 45%, var(--gold-dim) 100%);
-    box-shadow: 0 0 0 1px rgba(240,213,138,0.35), 0 0 18px rgba(201,162,75,0.35);
+    background: radial-gradient(circle at 35% 30%, var(--gold-light), var(--gold) 55%, #7a5e22 100%);
+    box-shadow: 0 0 0 1px rgba(240,213,138,.4), 0 6px 18px rgba(201,162,75,.35);
     position: relative;
   }
   .brand-mark::after {
-    content: "";
-    position: absolute;
-    inset: 6px;
-    border-radius: 50%;
-    border: 1px solid rgba(58,20,38,0.55);
+    content: "ن";
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #4a2210;
+    font-family: "Amiri", serif;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+    transform: translateY(-1px);
   }
-  .brand-title {
-    font-family: var(--font-body);
+  .brand h1 {
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: 15px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
     font-weight: 600;
-    font-size: 17px;
-    letter-spacing: 0.14em;
     color: var(--gold-light);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .header-actions { display: flex; gap: 8px; flex: 0 0 auto; }
-
+  .header-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
   .btn {
-    font-family: var(--font-ui);
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    padding: 9px 16px;
-    border-radius: 999px;
-    border: 1px solid var(--border-strong);
+    appearance: none;
+    border: 1px solid rgba(201,162,75,.55);
     background: transparent;
     color: var(--ivory);
+    padding: 9px 14px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .04em;
     cursor: pointer;
-    transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .btn:hover { background: rgba(201,162,75,0.12); border-color: var(--gold); }
-  .btn:active { transform: scale(0.97); }
-  .btn:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 2px; }
-  .btn-primary {
-    background: linear-gradient(180deg, var(--gold-light), var(--gold) 60%, #B08A3A);
-    color: #2A0E1C;
-    border-color: var(--gold-light);
-    box-shadow: 0 4px 16px rgba(201,162,75,0.30);
-  }
-  .btn-primary:hover { background: linear-gradient(180deg, #FBE6A8, var(--gold-light) 60%, var(--gold)); }
-  .btn-danger { border-color: rgba(224,90,110,0.5); color: #F3B9C2; }
-  .btn-danger:hover { background: rgba(224,90,110,0.14); border-color: var(--err); }
-
-  /* ---------- Loader ---------- */
-  #loader {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    display: flex;
-    flex-direction: column;
+    transition: transform .15s ease, background-color .2s ease, box-shadow .2s ease, border-color .2s ease;
+    min-height: 40px;
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 18px;
-    background: linear-gradient(160deg, #2A0E1C 0%, #3A1426 60%, #220B17 100%);
-    color: var(--gold-light);
-    transition: opacity 500ms ease, visibility 500ms ease;
+    gap: 8px;
+    white-space: nowrap;
   }
-  #loader.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
-  .loader-ring {
-    width: 54px;
-    height: 54px;
-    border-radius: 50%;
-    border: 2px solid rgba(201,162,75,0.25);
-    border-top-color: var(--gold-light);
-    animation: spin 1s linear infinite;
-    position: relative;
+  .btn:hover { background: rgba(201,162,75,.12); border-color: var(--gold); }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 3px; }
+  .btn.primary {
+    background: linear-gradient(180deg, var(--gold-light), var(--gold));
+    color: #2a0f1e;
+    border-color: #7a5e22;
+    box-shadow: 0 6px 18px rgba(201,162,75,.32), inset 0 1px 0 rgba(255,255,255,.4);
   }
-  .loader-ring::after {
-    content: "";
-    position: absolute;
-    inset: 8px;
-    border-radius: 50%;
-    border: 1px solid rgba(240,213,138,0.25);
-    border-bottom-color: var(--gold);
-    animation: spin 1.6s linear infinite reverse;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loader-text {
-    font-family: var(--font-body);
-    font-size: 15px;
-    letter-spacing: 0.06em;
-    color: var(--rose-dust);
-  }
+  .btn.primary:hover { filter: brightness(1.06); }
+  .btn.ghost { border-color: rgba(250,243,234,.28); }
+  .btn .btn-ico { font-size: 15px; line-height: 1; }
 
-  /* ---------- Error box ---------- */
-  #errorBox {
-    display: none;
-    margin: 16px 20px 0;
-    padding: 14px 16px;
-    border-radius: var(--radius);
-    background: rgba(224,90,110,0.12);
-    border: 1px solid rgba(224,90,110,0.5);
-    color: #FFD9DF;
-    font-size: 13px;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-  #errorBox.visible { display: block; }
-  #errorBox strong { color: #FFB3BF; display: block; margin-bottom: 4px; font-size: 13px; }
-  #errorBox code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; background: rgba(0,0,0,0.25); padding: 1px 5px; border-radius: 4px; }
-
-  /* ---------- Layout ---------- */
-  .app-main {
+  /* ---- Layout ---- */
+  .app-body {
     display: grid;
-    grid-template-columns: minmax(320px, 460px) 1fr;
-    gap: 20px;
-    padding: 20px;
-    max-width: 1440px;
+    grid-template-columns: minmax(340px, 460px) 1fr;
+    gap: 22px;
+    padding: 22px;
+    max-width: 1500px;
     margin: 0 auto;
     align-items: start;
   }
 
-  /* ---------- Editor panel ---------- */
+  /* ---- Editor panel ---- */
   #editor {
-    background: linear-gradient(180deg, var(--panel-2), var(--panel));
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-2);
+    background: linear-gradient(180deg, rgba(58,20,38,.92), rgba(42,15,30,.98));
+    border: 1px solid rgba(201,162,75,.28);
+    border-radius: 16px;
+    box-shadow: var(--panel-shadow);
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 100px);
-  }
-
-  .tabs {
-    display: flex;
-    gap: 2px;
-    padding: 6px 8px 0;
-    background: rgba(0,0,0,0.25);
-    border-bottom: 1px solid var(--border);
-    overflow-x: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--gold-dim) transparent;
-    -webkit-overflow-scrolling: touch;
-  }
-  .tabs::-webkit-scrollbar { height: 5px; }
-  .tabs::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
-  .tab-btn {
-    flex: 0 0 auto;
-    font-family: var(--font-ui);
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    padding: 9px 12px;
-    border: 1px solid transparent;
-    border-bottom: none;
-    border-radius: 8px 8px 0 0;
-    background: transparent;
-    color: var(--rose-dust);
-    cursor: pointer;
-    transition: background 160ms ease, color 160ms ease;
-    white-space: nowrap;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .tab-btn:hover { color: var(--ivory); background: rgba(201,162,75,0.08); }
-  .tab-btn.active {
-    color: var(--gold-light);
-    background: linear-gradient(180deg, rgba(201,162,75,0.14), rgba(201,162,75,0.04));
-    border-color: var(--border);
-    border-bottom-color: transparent;
+    min-height: 400px;
     position: relative;
   }
-  .tab-btn.active::after {
-    content: "";
-    position: absolute;
-    left: 12px; right: 12px; bottom: -1px;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  .editor-inner {
+    padding: 16px 16px 24px;
   }
-  .tab-btn:focus-visible { outline: 2px solid var(--gold-light); outline-offset: -2px; }
-
-  .tab-panels {
-    overflow-y: auto;
-    padding: 18px 16px 22px;
-    flex: 1 1 auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    scrollbar-color: var(--gold-dim) transparent;
-  }
-  .tab-panels::-webkit-scrollbar { width: 6px; }
-  .tab-panels::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
-
-  .tab-panel { display: none; animation: panelIn 260ms ease; }
-  .tab-panel.active { display: block; }
-  @keyframes panelIn {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  /* ---------- Form fields ---------- */
-  .field { margin-bottom: 14px; }
-  .field:last-child { margin-bottom: 0; }
-  .field-row { display: flex; gap: 10px; }
-  .field-row > .field { flex: 1 1 0; min-width: 0; }
-
-  label.field-label {
-    display: block;
-    font-size: 11.5px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--gold);
-    margin-bottom: 6px;
-  }
-  .field-hint {
-    font-size: 11.5px;
-    color: var(--rose-dust);
-    opacity: 0.85;
-    margin-top: 5px;
+  .editor-note {
+    font-size: 13px;
     line-height: 1.5;
-  }
-  .field-hint.warn { color: #F0B86A; }
-  .field-hint.err { color: #F390A0; }
-
-  input[type="text"],
-  input[type="url"],
-  input[type="tel"],
-  input[type="date"],
-  input[type="time"],
-  input[type="number"],
-  textarea,
-  select {
-    width: 100%;
-    font-family: var(--font-ui);
-    font-size: 14px;
-    color: var(--ivory);
-    background: rgba(0,0,0,0.28);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    color: rgba(250,243,234,.75);
+    background: rgba(201,162,75,.08);
+    border: 1px solid rgba(201,162,75,.22);
+    border-radius: 10px;
     padding: 10px 12px;
-    transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
-    -webkit-appearance: none;
-    appearance: none;
+    margin: 0 0 14px;
   }
-  input:hover, textarea:hover, select:hover { border-color: rgba(201,162,75,0.45); }
-  input:focus, textarea:focus, select:focus {
+  .editor-note strong { color: var(--gold-light); font-weight: 600; }
+  .editor-loading {
+    padding: 40px 16px;
+    text-align: center;
+    color: rgba(250,243,234,.6);
+    font-size: 14px;
+  }
+
+  /* Editor tabs */
+  .ed-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    scrollbar-width: thin;
+    border-bottom: 1px solid rgba(201,162,75,.18);
+  }
+  .ed-tabs::-webkit-scrollbar { height: 4px; }
+  .ed-tabs::-webkit-scrollbar-thumb { background: rgba(201,162,75,.35); border-radius: 4px; }
+  .ed-tab {
+    appearance: none;
+    border: 1px solid transparent;
+    background: rgba(250,243,234,.05);
+    color: rgba(250,243,234,.7);
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color .2s ease, color .2s ease, border-color .2s ease;
+    min-height: 36px;
+  }
+  .ed-tab:hover { background: rgba(250,243,234,.1); color: var(--ivory); }
+  .ed-tab:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 2px; }
+  .ed-tab.active {
+    background: linear-gradient(180deg, var(--gold-light), var(--gold));
+    color: #2a0f1e;
+    border-color: #7a5e22;
+  }
+  .ed-panel { display: none; }
+  .ed-panel.active { display: block; animation: fadeIn .25s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Field groups */
+  .ed-field {
+    margin-bottom: 14px;
+  }
+  .ed-field > label,
+  .ed-field-label {
+    display: block;
+    font-size: 12px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: rgba(240,213,138,.85);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .ed-hint {
+    font-size: 12px;
+    color: rgba(250,243,234,.55);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+  .ed-input,
+  .ed-textarea,
+  .ed-select {
+    width: 100%;
+    background: rgba(250,243,234,.06);
+    border: 1px solid rgba(201,162,75,.3);
+    border-radius: 10px;
+    color: var(--ivory);
+    padding: 10px 12px;
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.45;
+    transition: border-color .2s ease, background-color .2s ease, box-shadow .2s ease;
+  }
+  .ed-textarea { min-height: 78px; resize: vertical; }
+  .ed-input:focus,
+  .ed-textarea:focus,
+  .ed-select:focus {
     outline: none;
     border-color: var(--gold);
-    background: rgba(0,0,0,0.38);
-    box-shadow: 0 0 0 3px rgba(201,162,75,0.16);
+    background: rgba(250,243,234,.1);
+    box-shadow: 0 0 0 3px rgba(201,162,75,.18);
   }
-  input::placeholder, textarea::placeholder { color: rgba(217,160,166,0.45); }
-  textarea { resize: vertical; min-height: 78px; line-height: 1.55; }
-  select option { background: var(--panel); color: var(--ivory); }
-  input[type="date"], input[type="time"] { color-scheme: dark; }
+  .ed-input::placeholder,
+  .ed-textarea::placeholder { color: rgba(250,243,234,.35); }
+  .ed-input[dir="rtl"],
+  .ed-textarea[dir="rtl"] {
+    font-family: "Amiri", "Noto Nastaliq Urdu", var(--font-ui);
+    font-size: 18px;
+    text-align: right;
+  }
+  .ed-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--gold) 50%),
+      linear-gradient(-45deg, transparent 50%, var(--gold) 50%);
+    background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 34px;
+  }
+  .ed-select option { background: #2A0F1E; color: var(--ivory); }
 
-  .checkbox-row {
+  .ed-check {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 9px 0;
-  }
-  .checkbox-row input[type="checkbox"] {
-    width: 18px; height: 18px;
-    accent-color: var(--gold);
-    flex: 0 0 auto;
     cursor: pointer;
-  }
-  .checkbox-row label {
-    font-size: 13.5px;
+    font-size: 14px;
     color: var(--ivory);
-    cursor: pointer;
+    padding: 6px 0;
     user-select: none;
   }
-
-  .section-heading {
-    font-family: var(--font-body);
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--gold-light);
-    margin: 20px 0 12px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--border);
-    letter-spacing: 0.02em;
+  .ed-check input[type="checkbox"] {
+    width: 20px; height: 20px;
+    accent-color: var(--gold);
+    cursor: pointer;
   }
-  .section-heading:first-child { margin-top: 0; }
 
-  /* ---------- Events list ---------- */
-  .ev-list { display: flex; flex-direction: column; gap: 10px; }
-  .ev-item {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: rgba(0,0,0,0.22);
+  /* Collapsible list items (events, contacts) */
+  .ed-list { display: flex; flex-direction: column; gap: 10px; }
+  .ed-item {
+    background: rgba(250,243,234,.04);
+    border: 1px solid rgba(201,162,75,.22);
+    border-radius: 12px;
     overflow: hidden;
-    transition: border-color 160ms ease;
   }
-  .ev-item.is-main { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(201,162,75,0.25) inset; }
-  .ev-head {
+  .ed-item-head {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 10px 12px;
     cursor: pointer;
     user-select: none;
-    -webkit-tap-highlight-color: transparent;
+    background: rgba(201,162,75,.06);
   }
-  .ev-head:hover { background: rgba(201,162,75,0.06); }
-  .ev-head:focus-visible { outline: 2px solid var(--gold-light); outline-offset: -2px; }
-  .ev-caret {
-    flex: 0 0 auto;
-    width: 16px; height: 16px;
-    display: inline-flex; align-items: center; justify-content: center;
-    color: var(--gold);
-    transition: transform 200ms ease;
-  }
-  .ev-item.open .ev-caret { transform: rotate(90deg); }
-  .ev-title {
-    flex: 1 1 auto;
-    font-size: 14px;
+  .ed-item-head:hover { background: rgba(201,162,75,.12); }
+  .ed-item-title {
+    flex: 1;
     font-weight: 600;
-    color: var(--ivory);
+    font-size: 14px;
+    color: var(--gold-light);
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    min-width: 0;
   }
-  .ev-badge {
-    flex: 0 0 auto;
+  .ed-item-title .tag {
+    display: inline-block;
     font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: .05em;
+    background: var(--deep-rose);
+    color: var(--ivory);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    vertical-align: middle;
     text-transform: uppercase;
-    color: #2A0E1C;
-    background: var(--gold);
-    padding: 2px 8px;
-    border-radius: 999px;
+    font-weight: 700;
   }
-  .ev-body {
+  .ed-item-chev {
+    transition: transform .25s ease;
+    color: rgba(250,243,234,.55);
+    font-size: 12px;
+    width: 12px;
+    text-align: center;
+  }
+  .ed-item.open .ed-item-chev { transform: rotate(90deg); }
+  .ed-item-body {
     display: none;
-    padding: 4px 12px 14px;
-    border-top: 1px solid var(--border);
+    padding: 12px;
+    border-top: 1px solid rgba(201,162,75,.14);
   }
-  .ev-item.open .ev-body { display: block; animation: panelIn 220ms ease; }
-  .ev-actions {
+  .ed-item.open .ed-item-body { display: block; }
+  .ed-item-actions {
     display: flex;
-    flex-wrap: wrap;
     gap: 6px;
+    flex-wrap: wrap;
     margin-top: 10px;
     padding-top: 10px;
-    border-top: 1px dashed rgba(201,162,75,0.22);
+    border-top: 1px solid rgba(201,162,75,.14);
   }
-  .btn-sm {
-    font-family: var(--font-ui);
-    font-size: 11.5px;
-    font-weight: 600;
-    padding: 6px 11px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
+  .btn-mini {
+    appearance: none;
+    border: 1px solid rgba(201,162,75,.4);
     background: transparent;
     color: var(--ivory);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
-    transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
-    -webkit-tap-highlight-color: transparent;
+    min-height: 32px;
+    transition: background-color .2s ease, border-color .2s ease;
   }
-  .btn-sm:hover { background: rgba(201,162,75,0.10); border-color: var(--gold); }
-  .btn-sm:active { transform: scale(0.96); }
-  .btn-sm:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 2px; }
-  .btn-sm.danger { border-color: rgba(224,90,110,0.4); color: #F3B9C2; }
-  .btn-sm.danger:hover { background: rgba(224,90,110,0.12); border-color: var(--err); }
-  .btn-sm.accent { border-color: var(--gold); color: var(--gold-light); }
-  .btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  .add-btn {
+  .btn-mini:hover { background: rgba(201,162,75,.15); border-color: var(--gold); }
+  .btn-mini:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 2px; }
+  .btn-mini.danger { border-color: rgba(179,38,30,.6); color: #ff9b95; }
+  .btn-mini.danger:hover { background: rgba(179,38,30,.2); }
+  .btn-mini.gold { background: rgba(201,162,75,.18); border-color: var(--gold); }
+  .btn-add {
     width: 100%;
-    margin-top: 12px;
-    padding: 11px;
-    font-family: var(--font-ui);
+    margin-top: 8px;
+    padding: 10px;
+    border: 1px dashed rgba(201,162,75,.5);
+    background: rgba(201,162,75,.05);
+    color: var(--gold-light);
+    border-radius: 10px;
     font-size: 13px;
     font-weight: 600;
-    border-radius: var(--radius-sm);
-    border: 1px dashed var(--border-strong);
-    background: transparent;
-    color: var(--gold-light);
     cursor: pointer;
-    transition: background 160ms ease, border-color 160ms ease;
-    -webkit-tap-highlight-color: transparent;
+    min-height: 40px;
   }
-  .add-btn:hover { background: rgba(201,162,75,0.08); border-color: var(--gold); }
-  .add-btn:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 2px; }
+  .btn-add:hover { background: rgba(201,162,75,.12); border-style: solid; }
+  .btn-add:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 2px; }
 
-  /* ---------- Media / upload ---------- */
-  .upload-box {
-    border: 1px dashed var(--border-strong);
-    border-radius: var(--radius-sm);
-    padding: 14px;
-    text-align: center;
-    background: rgba(0,0,0,0.18);
-    transition: border-color 160ms ease, background 160ms ease;
-    cursor: pointer;
-  }
-  .upload-box:hover { border-color: var(--gold); background: rgba(201,162,75,0.06); }
-  .upload-box input[type="file"] { display: none; }
-  .upload-box .up-label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--gold-light);
-    display: block;
-    margin-bottom: 3px;
-  }
-  .upload-box .up-sub { font-size: 11.5px; color: var(--rose-dust); }
-
-  .thumb-grid {
+  /* Media thumbs */
+  .ed-thumb-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
     gap: 8px;
-    margin-top: 10px;
-  }
-  .thumb {
-    position: relative;
-    aspect-ratio: 1 / 1;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    border: 1px solid var(--border);
-    background: rgba(0,0,0,0.3);
-  }
-  .thumb img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-  .thumb-del {
-    position: absolute;
-    top: 4px; right: 4px;
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    border: none;
-    background: rgba(0,0,0,0.7);
-    color: #FFD9DF;
-    font-size: 14px;
-    line-height: 1;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 140ms ease, transform 140ms ease;
-  }
-  .thumb-del:hover { background: var(--err); transform: scale(1.08); }
-  .thumb-del:focus-visible { outline: 2px solid var(--gold-light); }
-
-  .img-preview {
-    margin-top: 10px;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    border: 1px solid var(--border);
-    background: rgba(0,0,0,0.25);
-    max-height: 160px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .img-preview img { max-width: 100%; max-height: 160px; display: block; }
-
-  .audio-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 10px;
-    padding: 10px 12px;
-    border-radius: var(--radius-sm);
-    background: rgba(0,0,0,0.22);
-    border: 1px solid var(--border);
-  }
-  .audio-row .audio-name {
-    flex: 1 1 auto;
-    font-size: 12.5px;
-    color: var(--ivory);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-  }
-  .audio-row audio { max-width: 160px; height: 32px; }
-
-  /* ---------- Guest link ---------- */
-  .guest-link-row {
-    display: flex;
-    gap: 8px;
     margin-top: 8px;
   }
-  .guest-link-row input { flex: 1 1 auto; font-size: 12.5px; }
-
-  /* ---------- Status / note ---------- */
-  .status-note {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--rose-dust);
-    padding: 10px 12px;
-    border-radius: var(--radius-sm);
-    background: rgba(201,162,75,0.06);
-    border: 1px solid var(--border);
-    margin-top: 14px;
-    line-height: 1.55;
-  }
-  .status-note .dot {
-    flex: 0 0 auto;
-    width: 7px; height: 7px;
-    margin-top: 5px;
-    border-radius: 50%;
-    background: var(--ok);
-    box-shadow: 0 0 6px rgba(123,196,127,0.6);
-  }
-  .status-note .dot.off { background: var(--rose-dust); box-shadow: none; }
-  .status-note strong { color: var(--gold-light); }
-
-  .help-note {
-    font-size: 11.5px;
-    color: var(--rose-dust);
-    opacity: 0.85;
-    margin-top: 10px;
-    line-height: 1.6;
-    padding: 10px 12px;
-    background: rgba(0,0,0,0.18);
-    border-radius: var(--radius-sm);
-    border-left: 2px solid var(--gold-dim);
-  }
-
-  /* ---------- Theme swatches ---------- */
-  .theme-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-  }
-  .theme-swatch {
+  .ed-thumb {
     position: relative;
-    border: 2px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 14px 12px;
-    cursor: pointer;
-    text-align: left;
-    background: transparent;
-    transition: border-color 160ms ease, transform 160ms ease;
-    -webkit-tap-highlight-color: transparent;
+    padding-top: 100%;
+    border-radius: 8px;
     overflow: hidden;
+    background: rgba(0,0,0,.3);
+    border: 1px solid rgba(201,162,75,.3);
   }
-  .theme-swatch:hover { transform: translateY(-1px); border-color: var(--gold); }
-  .theme-swatch:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 2px; }
-  .theme-swatch.active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,162,75,0.25); }
-  .swatch-colors {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 8px;
+  .ed-thumb img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
   }
-  .swatch-colors span {
-    width: 16px; height: 16px;
+  .ed-thumb-del {
+    position: absolute;
+    top: 3px; right: 3px;
+    width: 22px; height: 22px;
     border-radius: 50%;
-    border: 1px solid rgba(255,255,255,0.18);
-  }
-  .swatch-name {
+    background: rgba(0,0,0,.7);
+    color: #fff;
+    border: none;
+    cursor: pointer;
     font-size: 12px;
+    line-height: 1;
+    padding: 0;
+  }
+  .ed-thumb-del:hover { background: var(--danger); }
+  .ed-file-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+  }
+  .ed-file-row input[type="file"] {
+    font-size: 12px;
+    color: rgba(250,243,234,.8);
+    max-width: 100%;
+  }
+  .ed-file-row .btn-mini { flex: 0 0 auto; }
+  .ed-url-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .ed-url-row .ed-input { flex: 1; min-width: 0; }
+
+  /* Guest link maker */
+  .guest-maker {
+    background: rgba(201,162,75,.08);
+    border: 1px solid rgba(201,162,75,.3);
+    border-radius: 12px;
+    padding: 12px;
+    margin-top: 14px;
+  }
+  .guest-maker h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--gold-light);
+    letter-spacing: .05em;
+    text-transform: uppercase;
     font-weight: 600;
-    color: var(--ivory);
-    letter-spacing: 0.02em;
+  }
+  .guest-result {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .guest-result .ed-input { flex: 1; font-size: 13px; font-family: ui-monospace, monospace; }
+  .copy-flash {
+    color: var(--ok) !important;
+    border-color: var(--ok) !important;
   }
 
-  /* ---------- Preview side ---------- */
-  .preview-side {
-    position: sticky;
-    top: 20px;
+  /* ---- Preview panel ---- */
+  .preview-wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
+    position: sticky;
+    top: 86px;
   }
-  .phone {
-    width: min(390px, 100%);
-    aspect-ratio: 9 / 18.5;
-    max-height: calc(100vh - 120px);
-    border-radius: 42px;
-    background: #120609;
+  .phone-frame {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    aspect-ratio: 9 / 19.5;
+    background: #0d060b;
+    border-radius: 36px;
     padding: 12px;
     box-shadow:
-      0 0 0 1px rgba(201,162,75,0.35),
-      0 0 0 8px #1a0a12,
-      0 0 0 9px rgba(201,162,75,0.20),
-      0 30px 60px rgba(0,0,0,0.6);
-    position: relative;
+      0 0 0 2px rgba(201,162,75,.35),
+      0 0 0 8px rgba(13,6,11,.9),
+      0 30px 70px rgba(0,0,0,.6),
+      inset 0 0 20px rgba(201,162,75,.12);
   }
-  .phone::before {
-    content: "";
+  .phone-notch {
     position: absolute;
-    top: 18px;
-    left: 50%;
+    top: 12px; left: 50%;
     transform: translateX(-50%);
-    width: 110px;
-    height: 20px;
-    border-radius: 12px;
-    background: #120609;
-    z-index: 3;
-  }
-  .phone-inner {
-    width: 100%;
-    height: 100%;
-    border-radius: 32px;
-    overflow: hidden;
-    background: var(--plum);
-    position: relative;
+    width: 110px; height: 20px;
+    background: #0d060b;
+    border-radius: 0 0 12px 12px;
+    z-index: 5;
   }
   #previewFrame {
     width: 100%;
     height: 100%;
     border: 0;
+    border-radius: 26px;
+    background: #1d0a15;
     display: block;
-    background: var(--ivory);
   }
-  .preview-caption {
+  .preview-label {
     font-size: 12px;
-    color: var(--rose-dust);
+    color: rgba(250,243,234,.5);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  /* ---- Status line ---- */
+  #statusLine {
+    padding: 8px 22px;
+    font-size: 13px;
+    color: rgba(250,243,234,.6);
     text-align: center;
-    letter-spacing: 0.04em;
+    min-height: 24px;
+    transition: color .3s ease;
   }
+  #statusLine.saved { color: var(--ok); }
+  #statusLine.warn { color: var(--gold-light); }
 
-  /* ---------- Mobile Edit button ---------- */
-  #mobileEditBtn {
-    display: none;
-    position: fixed;
-    bottom: 18px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 80;
-    padding: 13px 26px;
-    border-radius: 999px;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    border: 1px solid var(--gold-light);
-    background: linear-gradient(180deg, var(--gold-light), var(--gold) 65%, #B08A3A);
-    color: #2A0E1C;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.55), 0 0 0 1px rgba(240,213,138,0.3);
-    cursor: pointer;
-    transition: transform 160ms ease, box-shadow 160ms ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  #mobileEditBtn:active { transform: translateX(-50%) scale(0.96); }
-  #mobileEditBtn:focus-visible { outline: 2px solid var(--ivory); outline-offset: 3px; }
-
-  #editorBackdrop {
-    display: none;
+  /* ---- Loader ---- */
+  #loader {
     position: fixed;
     inset: 0;
-    background: rgba(10,4,8,0.62);
-    z-index: 95;
-    opacity: 0;
-    transition: opacity 260ms ease;
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    background: radial-gradient(circle at 50% 40%, #3a1426, #1d0a15 70%);
+    color: var(--ivory);
+    transition: opacity .4s ease;
   }
-  #editorBackdrop.visible { display: block; opacity: 1; }
+  #loader.hidden { opacity: 0; pointer-events: none; visibility: hidden; }
+  .spinner {
+    width: 54px; height: 54px;
+    border-radius: 50%;
+    border: 3px solid rgba(201,162,75,.2);
+    border-top-color: var(--gold);
+    border-right-color: var(--gold-light);
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loader-text {
+    font-family: var(--font-display);
+    font-size: 26px;
+    color: var(--gold-light);
+    letter-spacing: .02em;
+  }
 
-  /* ---------- Responsive ---------- */
-  @media (max-width: 900px) {
-    .app-main {
-      grid-template-columns: 1fr;
-      padding: 14px;
-      gap: 16px;
-    }
-    .preview-side {
-      position: relative;
-      top: 0;
-      order: -1;
-    }
-    .phone {
-      width: min(340px, 92vw);
-      max-height: 68vh;
-      border-radius: 36px;
-      padding: 10px;
-    }
-    .phone-inner { border-radius: 28px; }
+  /* ---- Error box ---- */
+  #errorBox {
+    display: none;
+    position: fixed;
+    left: 12px; right: 12px; bottom: 12px;
+    z-index: 998;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger);
+    color: #ffb3ad;
+    padding: 14px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    max-height: 40vh;
+    overflow: auto;
+    box-shadow: 0 12px 30px rgba(0,0,0,.5);
+    white-space: pre-wrap;
+    font-family: ui-monospace, monospace;
+  }
+  #errorBox.visible { display: block; }
 
+  /* ---- Detective report panel ---- */
+  #detectiveReport {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: none;
+    background: rgba(10,3,8,.92);
+    padding: 16px;
+    overflow: auto;
+  }
+  #detectiveReport.visible { display: block; }
+  .report-inner {
+    max-width: 760px;
+    margin: 0 auto;
+    background: #1d0a15;
+    border: 1px solid var(--danger);
+    border-radius: 14px;
+    padding: 18px;
+    color: #ffd7d4;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+  .report-inner h2 {
+    margin: 0 0 12px;
+    color: #ff8a80;
+    font-family: var(--font-ui);
+    font-size: 20px;
+    letter-spacing: .04em;
+  }
+  .report-inner pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: rgba(0,0,0,.4);
+    padding: 10px;
+    border-radius: 8px;
+    margin: 10px 0;
+  }
+  .report-inner textarea {
+    width: 100%;
+    min-height: 120px;
+    background: #0d060b;
+    color: #ffd7d4;
+    border: 1px solid rgba(179,38,30,.5);
+    border-radius: 8px;
+    padding: 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+  .report-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .report-actions button {
+    appearance: none;
+    background: var(--danger);
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .report-actions button.alt { background: rgba(255,255,255,.1); }
+  .ok-line { color: var(--ok); }
+  .bad-line { color: #ff8a80; font-weight: 700; }
+
+  /* ---- Mobile: bottom sheet editor ---- */
+  #editFab {
+    display: none;
+    position: fixed;
+    right: 16px; bottom: 16px;
+    z-index: 30;
+    padding: 14px 22px;
+    border-radius: 999px;
+    border: none;
+    background: linear-gradient(180deg, var(--gold-light), var(--gold));
+    color: #2a0f1e;
+    font-size: 15px;
+    font-weight: 700;
+    box-shadow: 0 10px 26px rgba(0,0,0,.5), 0 0 0 1px rgba(240,213,138,.4);
+    cursor: pointer;
+    min-height: 48px;
+  }
+  #editFab:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+  @media (max-width: 800px) {
+    .app-header { padding: 10px 12px; }
+    .brand h1 { font-size: 13px; letter-spacing: .08em; }
+    .app-body {
+      display: block;
+      padding: 12px;
+    }
+    .preview-wrap {
+      position: static;
+      max-width: 100%;
+    }
+    .phone-frame {
+      max-width: 100%;
+      aspect-ratio: auto;
+      height: 72vh;
+      min-height: 460px;
+      border-radius: 24px;
+      padding: 8px;
+    }
+    #previewFrame { border-radius: 18px; }
+    .phone-notch { width: 90px; height: 16px; top: 8px; }
     #editor {
       position: fixed;
       left: 0; right: 0; bottom: 0;
       top: auto;
       max-height: 82vh;
       border-radius: 20px 20px 0 0;
-      z-index: 100;
       transform: translateY(105%);
-      transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
-      will-change: transform;
+      transition: transform .35s cubic-bezier(.2,.8,.2,1);
+      z-index: 40;
+      display: flex;
+      flex-direction: column;
     }
     #editor.sheet-open { transform: translateY(0); }
-    #editor::before {
+    .editor-inner {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      max-height: calc(82vh - 60px);
+      padding-bottom: 90px;
+    }
+    #editFab { display: inline-flex; align-items: center; gap: 8px; }
+    .editor-inner::before {
       content: "";
       display: block;
-      width: 42px; height: 4px;
-      border-radius: 2px;
-      background: rgba(201,162,75,0.4);
-      margin: 8px auto 4px;
-      flex: 0 0 auto;
+      width: 44px; height: 5px;
+      background: rgba(250,243,234,.3);
+      border-radius: 999px;
+      margin: 0 auto 12px;
     }
-    #mobileEditBtn { display: block; }
+  }
+  @media (min-width: 801px) {
+    #editor { max-height: calc(100vh - 120px); overflow-y: auto; }
   }
 
-  @media (max-width: 480px) {
-    .app-header { padding: 10px 12px; }
-    .brand-title { font-size: 14px; letter-spacing: 0.10em; }
-    .btn { padding: 8px 12px; font-size: 12px; }
-    .header-actions { gap: 6px; }
-    .tab-btn { font-size: 11px; padding: 8px 10px; }
-    .tab-panels { padding: 14px 12px 22px; }
-    .field-row { flex-direction: column; gap: 0; }
-    .theme-grid { grid-template-columns: 1fr; }
-  }
-
-  /* ---------- Reduced motion ---------- */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
-      animation-duration: 0.001ms !important;
+      animation-duration: .001ms !important;
       animation-iteration-count: 1 !important;
-      transition-duration: 0.001ms !important;
+      transition-duration: .001ms !important;
     }
-  }
-
-  /* Visually hidden helper */
-  .sr-only {
-    position: absolute;
-    width: 1px; height: 1px;
-    padding: 0; margin: -1px;
-    overflow: hidden;
-    clip: rect(0,0,0,0);
-    white-space: nowrap;
-    border: 0;
+    .spinner { animation: none; border-top-color: var(--gold); }
   }
 </style>
 </head>
 <body>
 
-<!-- Loader -->
-<div id="loader" role="status" aria-live="polite">
-  <div class="loader-ring" aria-hidden="true"></div>
-  <div class="loader-text">Preparing your card...</div>
-</div>
-
-<!-- Error box -->
-<div id="errorBox" role="alert" aria-live="assertive"></div>
-
-<!-- Header -->
 <header class="app-header">
   <div class="brand">
     <div class="brand-mark" aria-hidden="true"></div>
-    <div class="brand-title">NIKAH CARD BUILDER</div>
+    <h1>Nikah Card Builder</h1>
   </div>
   <div class="header-actions">
-    <button type="button" class="btn btn-danger" id="resetBtn">Reset</button>
-    <button type="button" class="btn btn-primary" id="downloadBtn">Download Card</button>
+    <button type="button" class="btn ghost" id="resetBtn" aria-label="Reset the draft and start over">
+      <span class="btn-ico" aria-hidden="true">↺</span> Reset
+    </button>
+    <button type="button" class="btn primary" id="downloadBtn" aria-label="Download the finished card as an HTML file">
+      <span class="btn-ico" aria-hidden="true">↓</span> Download Card
+    </button>
   </div>
 </header>
 
-<!-- Main layout -->
-<main class="app-main">
-
-  <!-- Editor panel -->
-  <section id="editor" aria-label="Card editor">
-    <div class="tabs" role="tablist" aria-label="Editor sections">
-      <button type="button" class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-basic" data-tab="basic">Basic</button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-events" data-tab="events">Events</button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-story" data-tab="story">Story &amp; Photos</button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-music" data-tab="music">Music</button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-media" data-tab="media">Images &amp; Video</button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-contacts" data-tab="contacts">Contacts &amp; RSVP</button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-theme" data-tab="theme">Theme</button>
+<div class="app-body">
+  <aside id="editor" aria-label="Card editor">
+    <div class="editor-inner" id="editorInner">
+      <p class="editor-note">
+        <strong>Quick start:</strong> edit the fields, watch the preview, then Download. Put the file in a folder as <code>index.html</code>, drag the folder to Netlify Drop (app.netlify.com/drop), and share the link.
+      </p>
+      <div class="editor-loading">Preparing the editor…</div>
     </div>
-
-    <div class="tab-panels">
-
-      <!-- BASIC -->
-      <div class="tab-panel active" id="tab-basic" role="tabpanel" aria-label="Basic details">
-        <div class="field">
-          <label class="field-label" for="f-seal">Seal initials</label>
-          <input type="text" id="f-seal" data-bind="seal" placeholder="M &amp; S" maxlength="14">
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-host">Host family line</label>
-          <input type="text" id="f-host" data-bind="host" placeholder="Family Name &amp; family">
-        </div>
-        <div class="section-heading">The couple</div>
-        <div class="field">
-          <label class="field-label" for="f-p1name">Groom name</label>
-          <input type="text" id="f-p1name" data-bind="person1.name" placeholder="Groom Name" dir="auto">
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-p1sub">Groom subtitle</label>
-          <input type="text" id="f-p1sub" data-bind="person1.sub" placeholder="Son of Mr. &amp; Mrs. ____" dir="auto">
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-p2name">Bride name</label>
-          <input type="text" id="f-p2name" data-bind="person2.name" placeholder="Bride Name" dir="auto">
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-p2sub">Bride subtitle</label>
-          <input type="text" id="f-p2sub" data-bind="person2.sub" placeholder="Daughter of Mr. &amp; Mrs. ____" dir="auto">
-        </div>
-
-        <div class="section-heading">Invitation text</div>
-        <div class="field">
-          <label class="field-label" for="f-inviteEn">English invitation</label>
-          <textarea id="f-inviteEn" data-bind="inviteEn" rows="3" dir="auto"></textarea>
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-inviteRoman">Roman Urdu invitation</label>
-          <textarea id="f-inviteRoman" data-bind="inviteRoman" rows="3" dir="auto"></textarea>
-        </div>
-
-        <div class="section-heading">Sacred words</div>
-        <div class="checkbox-row">
-          <input type="checkbox" id="f-showAyah" data-bind="ayah.show">
-          <label for="f-showAyah">Show the Ayah in the card</label>
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-ayahText">Ayah (Arabic)</label>
-          <textarea id="f-ayahText" data-bind="ayah.text" rows="3" dir="rtl" style="font-family:'Amiri',serif;font-size:18px;line-height:1.9"></textarea>
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-ayahTrans">Ayah translation</label>
-          <textarea id="f-ayahTrans" data-bind="ayah.translation" rows="3" dir="auto"></textarea>
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-ayahRef">Ayah reference</label>
-          <input type="text" id="f-ayahRef" data-bind="ayah.reference">
-        </div>
-
-        <div class="section-heading">Closing words</div>
-        <div class="field">
-          <label class="field-label" for="f-thanks">Thanks line</label>
-          <textarea id="f-thanks" data-bind="footer.thanks" rows="2" dir="auto"></textarea>
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-family">Family line</label>
-          <input type="text" id="f-family" data-bind="footer.family" dir="auto">
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-closing">Closing</label>
-          <input type="text" id="f-closing" data-bind="footer.closing" dir="auto">
-        </div>
-
-        <div class="status-note">
-          <span class="dot" id="draftDot"></span>
-          <span id="draftStatus">Draft saved automatically</span>
-        </div>
-
-        <div class="help-note">
-          Download, put the file in a folder as <strong style="color:var(--gold-light)">index.html</strong>, drag the folder to Netlify Drop (app.netlify.com/drop), share the link.
-        </div>
-      </div>
-
-      <!-- EVENTS -->
-      <div class="tab-panel" id="tab-events" role="tabpanel" aria-label="Events">
-        <p class="field-hint" style="margin-bottom:14px">Each event gets its own card. Tap an event to edit. Exactly one event is the <strong style="color:var(--gold-light)">main</strong> event (drives the countdown).</p>
-        <div class="ev-list" id="evList"></div>
-        <button type="button" class="add-btn" id="addEventBtn">+ Add another event</button>
-      </div>
-
-      <!-- STORY & PHOTOS -->
-      <div class="tab-panel" id="tab-story" role="tabpanel" aria-label="Story and photos">
-        <div class="checkbox-row">
-          <input type="checkbox" id="f-storyShow" data-bind="story.show">
-          <label for="f-storyShow">Show "Our Story" section</label>
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-storyTitle">Story title</label>
-          <input type="text" id="f-storyTitle" data-bind="story.title" dir="auto">
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-storyText">Story text</label>
-          <textarea id="f-storyText" data-bind="story.text" rows="5" dir="auto"></textarea>
-        </div>
-
-        <div class="section-heading">Gallery (up to 8 photos)</div>
-        <label class="upload-box" for="f-galleryInput">
-          <span class="up-label">Choose photos</span>
-          <span class="up-sub">They will be resized automatically</span>
-          <input type="file" id="f-galleryInput" accept="image/*" multiple>
-        </label>
-        <div class="thumb-grid" id="galleryGrid"></div>
-
-        <div class="section-heading">Dua</div>
-        <div class="checkbox-row">
-          <input type="checkbox" id="f-duaShow" data-bind="dua.show">
-          <label for="f-duaShow">Show the Dua</label>
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-duaText">Dua (Arabic)</label>
-          <textarea id="f-duaText" data-bind="dua.text" rows="3" dir="rtl" style="font-family:'Amiri',serif;font-size:18px;line-height:1.9"></textarea>
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-duaTrans">Dua translation</label>
-          <textarea id="f-duaTrans" data-bind="dua.translation" rows="2" dir="auto"></textarea>
-        </div>
-      </div>
-
-      <!-- MUSIC -->
-      <div class="tab-panel" id="tab-music" role="tabpanel" aria-label="Music">
-        <p class="field-hint" style="margin-bottom:14px">Optional background music. It never autoplays — it starts only when your guest opens the invitation.</p>
-        <label class="upload-box" for="f-musicInput">
-          <span class="up-label">Choose an MP3 file</span>
-          <span class="up-sub">Keep it under 3 MB if possible</span>
-          <input type="file" id="f-musicInput" accept="audio/mpeg,audio/mp3">
-        </label>
-        <div id="musicPreview"></div>
-        <div class="field-hint warn" id="musicWarn" style="display:none"></div>
-        <div class="field" style="margin-top:14px">
-          <button type="button" class="btn-sm danger" id="removeMusicBtn" style="display:none">Remove music</button>
-        </div>
-      </div>
-
-      <!-- MEDIA -->
-      <div class="tab-panel" id="tab-media" role="tabpanel" aria-label="Images and video">
-        <div class="section-heading">Images (all optional)</div>
-
-        <div class="field">
-          <label class="field-label" for="f-heroImageInput">Hero backdrop</label>
-          <label class="upload-box" for="f-heroImageInput">
-            <span class="up-label">Choose hero image</span>
-            <span class="up-sub">Soft blurred backdrop</span>
-            <input type="file" id="f-heroImageInput" accept="image/*">
-          </label>
-          <div id="heroImagePreview"></div>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="f-couplePhotoInput">Couple photo</label>
-          <label class="upload-box" for="f-couplePhotoInput">
-            <span class="up-label">Choose couple photo</span>
-            <span class="up-sub">Sits inside the arch frame</span>
-            <input type="file" id="f-couplePhotoInput" accept="image/*">
-          </label>
-          <div id="couplePhotoPreview"></div>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="f-floralFrameInput">Floral frame (transparent PNG)</label>
-          <label class="upload-box" for="f-floralFrameInput">
-            <span class="up-label">Choose floral frame</span>
-            <span class="up-sub">Corners and parallax</span>
-            <input type="file" id="f-floralFrameInput" accept="image/png">
-          </label>
-          <div id="floralFramePreview"></div>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="f-envelopeImageInput">Envelope image</label>
-          <label class="upload-box" for="f-envelopeImageInput">
-            <span class="up-label">Choose envelope image</span>
-            <span class="up-sub">Replaces the CSS envelope</span>
-            <input type="file" id="f-envelopeImageInput" accept="image/*">
-          </label>
-          <div id="envelopeImagePreview"></div>
-        </div>
-
-        <div class="section-heading">Background videos</div>
-        <div class="field">
-          <label class="field-label" for="f-videoOpening">Opening video</label>
-          <input type="text" id="f-videoOpening" data-bind="videoOpening" placeholder="opening.mp4 or https://...">
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-videoMain">Main video</label>
-          <input type="text" id="f-videoMain" data-bind="videoMain" placeholder="main.mp4 or https://...">
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-videoFinale">Finale video</label>
-          <input type="text" id="f-videoFinale" data-bind="videoFinale" placeholder="finale.mp4 or https://...">
-        </div>
-        <div class="field-hint">
-          Put the mp4 files in the same folder as index.html and type the file name, or paste an https link. Best: black background loops with gold particles, petals or fireworks.
-        </div>
-      </div>
-
-      <!-- CONTACTS & RSVP -->
-      <div class="tab-panel" id="tab-contacts" role="tabpanel" aria-label="Contacts and RSVP">
-        <div class="checkbox-row">
-          <input type="checkbox" id="f-rsvpShow" data-bind="rsvp.show">
-          <label for="f-rsvpShow">Show the RSVP section</label>
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-whatsapp">WhatsApp number (with country code)</label>
-          <input type="tel" id="f-whatsapp" data-bind="rsvp.whatsapp" placeholder="91XXXXXXXXXX" inputmode="tel">
-          <div class="field-hint">Digits only, no + or spaces. Example: 919876543210</div>
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-rsvpNote">RSVP note</label>
-          <input type="text" id="f-rsvpNote" data-bind="rsvp.note" dir="auto">
-        </div>
-
-        <div class="section-heading">Contacts (up to 3)</div>
-        <div id="contactsList"></div>
-
-        <div class="section-heading">Guest link maker</div>
-        <p class="field-hint">Paste your published card URL and a guest's name to make a personal link.</p>
-        <div class="field">
-          <label class="field-label" for="f-pageUrl">Published page URL</label>
-          <input type="url" id="f-pageUrl" placeholder="https://your-card.netlify.app/">
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-guestName">Guest name</label>
-          <input type="text" id="f-guestName" placeholder="Aunty Fatima" dir="auto">
-        </div>
-        <div class="field">
-          <label class="field-label" for="f-guestResult">Personal link</label>
-          <div class="guest-link-row">
-            <input type="text" id="f-guestResult" readonly placeholder="Your link appears here">
-            <button type="button" class="btn-sm accent" id="copyGuestBtn">Copy</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- THEME -->
-      <div class="tab-panel" id="tab-theme" role="tabpanel" aria-label="Theme">
-        <p class="field-hint" style="margin-bottom:14px">Choose a palette. Every theme keeps gold for ornaments only and deep plum for the arrival, corridor and finale.</p>
-        <div class="theme-grid" id="themeGrid"></div>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- Preview side -->
-  <aside class="preview-side" aria-label="Live preview">
-    <div class="phone">
-      <div class="phone-inner">
-        <iframe id="previewFrame" sandbox="allow-scripts allow-modals" title="Card preview"></iframe>
-      </div>
-    </div>
-    <p class="preview-caption">Live preview</p>
   </aside>
 
-</main>
+  <div class="preview-wrap">
+    <div class="phone-frame">
+      <div class="phone-notch" aria-hidden="true"></div>
+      <iframe
+        id="previewFrame"
+        title="Live card preview"
+        sandbox="allow-scripts allow-modals"
+        srcdoc="<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>html,body{margin:0;height:100%;background:#1d0a15;color:#FAF3EA;font-family:Georgia,serif;display:flex;align-items:center;justify-content:center;text-align:center}div{padding:24px;font-size:15px;line-height:1.6;opacity:.7}</style></head><body><div>Your card preview will appear here.</div></body></html>"
+      ></iframe>
+    </div>
+    <div class="preview-label">Live preview</div>
+  </div>
+</div>
 
-<!-- Mobile edit button and backdrop -->
-<button type="button" id="mobileEditBtn" aria-label="Open editor">Edit</button>
-<div id="editorBackdrop"></div>
+<div id="statusLine" aria-live="polite"></div>
 
-<!-- Scripts in the required order -->
+<button type="button" id="editFab" aria-label="Open the editor">
+  <span aria-hidden="true">✎</span> Edit
+</button>
+
+<div id="loader" role="status" aria-live="polite">
+  <div class="spinner" aria-hidden="true"></div>
+  <div class="loader-text">Preparing your card…</div>
+</div>
+
+<div id="errorBox" role="alert" aria-live="assertive"></div>
+
+<div id="detectiveReport" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
+  <div class="report-inner">
+    <h2 id="reportTitle">Something went wrong — diagnostic report</h2>
+    <p>The card builder could not start. The report below will help fix it. Please copy it and send it on.</p>
+    <pre id="reportBody">Collecting…</pre>
+    <textarea id="reportText" readonly aria-label="Diagnostic report text"></textarea>
+    <div class="report-actions">
+      <button type="button" id="copyReportBtn">Copy report</button>
+      <button type="button" class="alt" id="closeReportBtn">Close</button>
+    </div>
+  </div>
+</div>
+
 <script src="card-style.js"></script>
 <script src="card-runtime.js"></script>
 <script src="card-scenes.js"></script>
 <script src="card.js"></script>
 <script src="builder.js"></script>
 
-<!-- Detective: 4-second health check (for the builder page only, not for guests) -->
 <script>
+/* LAST SCRIPT BEFORE </body>: watchdog that reports if the app failed to start. */
 (function () {
-  window.__errs = window.__errs || [];
-  window.addEventListener('error', function (e) {
-    try {
-      window.__errs.push(
-        'ERROR: ' + (e.message || 'unknown') +
-        ' | file: ' + (e.filename || '?') +
-        ' | line: ' + (e.lineno || '?') + ':' + (e.colno || '?')
-      );
-    } catch (x) {}
-  });
-  window.addEventListener('unhandledrejection', function (e) {
-    try {
-      var r = e && e.reason ? (e.reason.message || String(e.reason)) : 'unknown';
-      window.__errs.push('REJECTION: ' + r);
-    } catch (x) {}
-  });
+  var started = false;
+  try { started = window.__appReady === true; } catch (e) {}
 
-  function line(name, ok) { return name + ': ' + (ok ? 'OK' : 'MISSING YA ADHOORI'); }
-  setTimeout(function () {
-    var loader = document.getElementById('loader');
-    var editor = document.getElementById('editor');
-    var loaderVisible = false;
-    if (loader) {
-      var cs = window.getComputedStyle(loader);
-      loaderVisible = !loader.hidden && cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0';
+  function el(id) { return document.getElementById(id); }
+
+  function showReport() {
+    try {
+      var loader = el("loader");
+      var editor = el("editorInner");
+      var errs = (window.__errs && window.__errs.length) ? window.__errs : [];
+
+      var styleOk = !!window.CARD_LOADED_STYLE;
+      var runtimeOk = !!window.CARD_LOADED_RUNTIME;
+      var scenesOk = !!window.CARD_LOADED_SCENES;
+      var dataOk = !!window.CARD_LOADED_DATA;
+      var buildFnType = typeof window.buildCardHTML;
+      var buildFnOk = buildFnType === "function";
+      var editorHasChildren = !!(editor && editor.children && editor.children.length > 0);
+      var step = window.__step || "(unset)";
+
+      var lines = [];
+      lines.push("=== NIKAH CARD BUILDER — DIAGNOSTIC ===");
+      lines.push("");
+      lines.push("card-style.js:   " + (styleOk ? "OK" : "MISSING OR INCOMPLETE"));
+      lines.push("card-runtime.js: " + (runtimeOk ? "OK" : "MISSING OR INCOMPLETE"));
+      lines.push("card-scenes.js:  " + (scenesOk ? "OK" : "MISSING OR INCOMPLETE"));
+      lines.push("card.js:         " + (dataOk ? "OK" : "MISSING OR INCOMPLETE"));
+      lines.push("buildCardHTML:   " + (buildFnOk ? "OK (function)" : "MISSING (typeof = " + buildFnType + ")"));
+      lines.push("Editor built:    " + (editorHasChildren ? "OK (has children)" : "NO (empty)"));
+      lines.push("Current step:    " + step);
+      lines.push("");
+      if (errs.length) {
+        lines.push("--- Collected errors (" + errs.length + ") ---");
+        for (var i = 0; i < errs.length; i++) {
+          lines.push((i + 1) + ". " + errs[i]);
+        }
+      } else {
+        lines.push("--- No collected errors ---");
+      }
+      lines.push("");
+      lines.push("=== END OF REPORT ===");
+
+      var reportText = lines.join("\n");
+      var body = el("reportBody");
+      var ta = el("reportText");
+      if (body) body.textContent = reportText;
+      if (ta) ta.value = reportText;
+
+      var panel = el("detectiveReport");
+      if (panel) panel.classList.add("visible");
+      if (loader) loader.classList.add("hidden");
+    } catch (e) {
+      /* As a last resort, alert the raw error. */
+      try { alert("Card builder failed and the reporter failed too: " + (e && e.message)); } catch (e2) {}
     }
-    var editorEmpty = !editor || editor.children.length === 0;
-    if (!loaderVisible && !editorEmpty && window.__errs.length === 0) { return; }
+  }
 
-    var lines = [
-      line('card-style.js', window.CARD_LOADED_STYLE),
-      line('card-runtime.js', window.CARD_LOADED_RUNTIME),
-      line('card-scenes.js', window.CARD_LOADED_SCENES),
-      line('card.js', window.CARD_LOADED_DATA),
-      'buildCardHTML: ' + typeof window.buildCardHTML,
-      'Editor ban gaya: ' + (editorEmpty ? 'NAHI (builder.js chala hi nahi ya ruk gaya)' : 'haan'),
-      '--- errors ---'
-    ].concat(window.__errs.length ? window.__errs : ['koi error pakda nahi gaya (page atka hua ho sakta hai)']);
-    var report = lines.join('\n');
+  function checkStatus() {
+    try {
+      if (started) return;
+      var loader = el("loader");
+      var editor = el("editorInner");
+      var errs = (window.__errs && window.__errs.length) ? window.__errs : [];
+      var loaderVisible = false;
+      if (loader && !loader.classList.contains("hidden")) loaderVisible = true;
+      var editorEmpty = !(editor && editor.children && editor.children.length > 0);
+      var anyErrors = errs.length > 0;
 
-    var box = document.getElementById('errorBox') || document.body.appendChild(document.createElement('div'));
-    box.hidden = false;
-    box.style.cssText = 'display:block;position:fixed;left:8px;right:8px;top:8px;z-index:99999;background:#7a1020;color:#fff;padding:14px;border-radius:8px;font:14px/1.5 monospace;white-space:pre-wrap;max-height:80vh;overflow:auto';
-    box.textContent = 'REPORT (ye mujhe bhej do)\n\n' + report;
-    var b = document.createElement('button');
-    b.textContent = 'Copy report';
-    b.style.cssText = 'display:block;margin-top:10px;padding:8px 14px;font-size:14px';
-    b.onclick = function () {
-      var ta = document.createElement('textarea');
-      ta.value = report; document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); b.textContent = 'Copied!'; } catch (x) {}
-      document.body.removeChild(ta);
-    };
-    box.appendChild(b);
-    if (loader) { loader.style.display = 'none'; }
-  }, 4000);
+      if (loaderVisible || editorEmpty || anyErrors) {
+        showReport();
+      } else {
+        /* All good — hide the loader. */
+        if (loader) loader.classList.add("hidden");
+      }
+    } catch (e) {
+      try { window.__errs.push("WATCHDOG FAILURE: " + (e && e.message)); } catch (e2) {}
+      showReport();
+    }
+  }
+
+  /* Copy report button */
+  try {
+    var copyBtn = el("copyReportBtn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", function () {
+        var ta = el("reportText");
+        if (!ta) return;
+        ta.removeAttribute("readonly");
+        ta.select();
+        ta.setSelectionRange(0, ta.value.length);
+        var copied = false;
+        try { copied = document.execCommand("copy"); } catch (e) { copied = false; }
+        ta.setAttribute("readonly", "readonly");
+        if (copied) {
+          copyBtn.textContent = "Copied!";
+          setTimeout(function () { copyBtn.textContent = "Copy report"; }, 1800);
+        } else {
+          copyBtn.textContent = "Select the text above and copy manually";
+        }
+      });
+    }
+    var closeBtn = el("closeReportBtn");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", function () {
+        var panel = el("detectiveReport");
+        if (panel) panel.classList.remove("visible");
+      });
+    }
+  } catch (e) { /* ignore */ }
+
+  /* Fire the watchdog after 3 seconds. */
+  setTimeout(checkStatus, 3000);
 })();
 </script>
-
 </body>
 </html>
-
 <!-- END OF FILE index.html -->
