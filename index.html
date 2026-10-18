@@ -1,154 +1,989 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="maroon">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <!-- Mobile first: tell phones to use their real width and allow zoom (accessibility) -->
+  <meta charset="utf-8" />
+  <!-- Mobile first. viewport-fit=cover lets the card use the full phone screen. -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#3b0d12" />
-  <meta name="description" content="A cinematic Indian wedding invitation — open the gate, see the celebrations, RSVP in one tap." />
-  <title>Wedding Invitation</title>
+  <meta name="theme-color" content="#04211c" />
+  <meta name="description" content="Build an elegant Islamic wedding invitation (Nikah / Walima) and download it as one ready-to-share HTML file." />
+  <title>Nikah Card Builder</title>
 
-  <!-- Fonts: Great Vibes (names), Cormorant Garamond (body), Cinzel (small caps labels),
-       Amiri (Urdu/Arabic), Tiro Devanagari Hindi (Hindi). The final card rewrites this file
-       and keeps the same links, so the exported card looks identical. -->
+  <!-- Fonts used by the card itself (Reem Kufi, Amiri, Noto Nastaliq Urdu,
+       Great Vibes, Cormorant Garamond). The same link is copied into the
+       exported card, so what you preview is what guests will see. -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Cinzel:wght@400;500;600&family=Amiri:ital,wght@0,400;0,700;1,400&family=Tiro+Devanagari+Hindi:ital@0;1&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400;500;600&family=Amiri:ital,wght@0,400;0,700;1,400&family=Noto+Nastaliq+Urdu:wght@400;500&family=Great+Vibes&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap"
     rel="stylesheet"
   />
 
-  <!-- The single stylesheet. style.css holds every theme, layout and animation. -->
-  <link rel="stylesheet" href="style.css" />
+  <!-- The builder's own look lives here on purpose:
+       card.css holds ONLY the invitation styles and is fetched as text
+       by builder.js, so nothing from the builder leaks into the export. -->
+  <style>
+    /* ---------- 1. Builder theme variables ---------- */
+    :root {
+      --ui-bg: #04211c;
+      --ui-bg-2: #072b24;
+      --ui-panel: #0a342c;
+      --ui-panel-2: rgba(255, 255, 255, 0.05);
+      --ui-ink: #f3efe1;
+      --ui-ink-soft: rgba(243, 239, 225, 0.66);
+      --ui-gold: #e6c27e;
+      --ui-gold-2: #bf9546;
+      --ui-line: rgba(230, 194, 126, 0.26);
+      --ui-glow: rgba(230, 194, 126, 0.3);
+      --ui-danger: #ff9b9b;
+      --radius: 14px;
+      --topbar-h: 58px;
+    }
+
+    /* ---------- 2. Base reset ---------- */
+    *,
+    *::before,
+    *::after { box-sizing: border-box; }
+
+    html { -webkit-text-size-adjust: 100%; }
+
+    html,
+    body { height: 100%; }
+
+    body {
+      margin: 0;
+      background: var(--ui-bg);
+      color: var(--ui-ink);
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 1rem;
+      line-height: 1.55;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, p, figure, dl, dd { margin: 0; }
+    img { max-width: 100%; display: block; }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    a { color: var(--ui-gold); text-underline-offset: 3px; }
+
+    /* Clear focus ring for keyboard users. */
+    :focus-visible {
+      outline: 2px solid var(--ui-gold);
+      outline-offset: 3px;
+      border-radius: 8px;
+    }
+
+    /* Text that only screen readers should read. */
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    code {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.86em;
+      padding: 0.05em 0.35em;
+      border-radius: 5px;
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--ui-gold);
+    }
+
+    /* ---------- 3. Top bar ---------- */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 80;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.6rem;
+      height: var(--topbar-h);
+      padding: 0 0.75rem;
+      background: linear-gradient(180deg, var(--ui-bg-2), rgba(7, 43, 36, 0.92));
+      border-bottom: 1px solid var(--ui-line);
+      backdrop-filter: blur(10px);
+    }
+
+    .topbar__brand {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+
+    .topbar__brand svg {
+      width: 22px;
+      height: 22px;
+      flex: 0 0 auto;
+      color: var(--ui-gold);
+      filter: drop-shadow(0 0 8px var(--ui-glow));
+    }
+
+    .topbar__name {
+      font-family: "Reem Kufi", "Cormorant Garamond", sans-serif;
+      font-size: 0.86rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ui-ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .topbar__actions {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex: 0 0 auto;
+    }
+
+    /* ---------- 4. Buttons ---------- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      min-height: 40px;
+      padding: 0.5rem 0.95rem;
+      border-radius: 999px;
+      border: 1px solid var(--ui-line);
+      background: transparent;
+      color: var(--ui-ink);
+      font-family: "Reem Kufi", "Cormorant Garamond", sans-serif;
+      font-size: 0.66rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      transition: transform 0.2s ease, background 0.2s ease,
+                  border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      border-color: var(--ui-gold);
+    }
+
+    .btn:active { transform: translateY(0); }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn--gold {
+      background: linear-gradient(150deg, var(--ui-gold-2), var(--ui-gold) 55%, var(--ui-gold-2));
+      border-color: transparent;
+      color: #04211c;
+      font-weight: 600;
+      box-shadow: 0 10px 26px rgba(230, 194, 126, 0.22);
+    }
+
+    .btn--gold:hover { box-shadow: 0 14px 34px rgba(230, 194, 126, 0.32); }
+
+    .btn--ghost { color: var(--ui-ink-soft); }
+    .btn--ghost:hover { color: var(--ui-ink); }
+
+    /* Small screens: keep the top bar from overflowing. */
+    @media (max-width: 430px) {
+      .topbar__name { display: none; }
+      .btn { padding: 0.5rem 0.8rem; font-size: 0.6rem; }
+    }
+
+    /* ---------- 5. Workspace (editor + preview) ---------- */
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr;
+      min-height: calc(100svh - var(--topbar-h));
+    }
+
+    /* Preview fills the phone screen under the top bar. */
+    .preview {
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: var(--topbar-h);
+      bottom: 0;
+      background: #02120f;
+      overflow: hidden;
+    }
+
+    .preview__frame {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #04211c;
+    }
+
+    /* Friendly "preparing" overlay until the first render lands. */
+    .preview__loading {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: 0.8rem;
+      background: radial-gradient(circle at 50% 40%, #0a342c 0%, #02120f 70%);
+      color: var(--ui-ink-soft);
+      font-family: "Reem Kufi", sans-serif;
+      font-size: 0.7rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      text-align: center;
+      padding: 1rem;
+      transition: opacity 0.4s ease, visibility 0.4s ease;
+    }
+
+    .preview__loading.is-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .preview__spinner {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 2px solid var(--ui-line);
+      border-top-color: var(--ui-gold);
+      animation: uiSpin 0.9s linear infinite;
+    }
+
+    @keyframes uiSpin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ---------- 6. Editor panel ---------- */
+    /* Phone: slides up as a bottom sheet. */
+    .editor {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 70;
+      display: flex;
+      flex-direction: column;
+      height: 88svh;
+      max-height: 88svh;
+      background: var(--ui-bg-2);
+      border-top: 1px solid var(--ui-line);
+      border-radius: 18px 18px 0 0;
+      box-shadow: 0 -22px 60px rgba(0, 0, 0, 0.6);
+      transform: translateY(102%);
+      transition: transform 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+
+    .editor.is-open { transform: translateY(0); }
+
+    /* Grab handle on the mobile sheet. */
+    .editor::before {
+      content: "";
+      flex: 0 0 auto;
+      width: 42px;
+      height: 4px;
+      margin: 8px auto 2px;
+      border-radius: 4px;
+      background: var(--ui-line);
+    }
+
+    .editor__head {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.6rem;
+      padding: 0.35rem 1rem 0.65rem;
+      border-bottom: 1px solid var(--ui-line);
+    }
+
+    .editor__title {
+      font-family: "Great Vibes", cursive;
+      font-size: 1.55rem;
+      line-height: 1;
+      color: var(--ui-gold);
+    }
+
+    .editor__close {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 1px solid var(--ui-line);
+      background: transparent;
+      color: var(--ui-ink);
+      font-size: 1.15rem;
+      line-height: 1;
+      flex: 0 0 auto;
+    }
+
+    .editor__close:hover { border-color: var(--ui-gold); }
+
+    /* "How to use" note. */
+    .ed-note {
+      flex: 0 0 auto;
+      margin: 0.7rem 1rem 0;
+      padding: 0.7rem 0.85rem;
+      border: 1px dashed var(--ui-line);
+      border-radius: 12px;
+      background: var(--ui-panel-2);
+      color: var(--ui-ink-soft);
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+
+    .ed-note strong { color: var(--ui-gold); font-weight: 600; }
+
+    /* Horizontal tab strip. */
+    .ed-tabs {
+      flex: 0 0 auto;
+      display: flex;
+      gap: 0.35rem;
+      padding: 0.7rem 1rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+      border-bottom: 1px solid var(--ui-line);
+    }
+
+    .ed-tabs::-webkit-scrollbar { display: none; }
+
+    .ed-tab {
+      flex: 0 0 auto;
+      min-height: 36px;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid var(--ui-line);
+      background: transparent;
+      color: var(--ui-ink-soft);
+      font-family: "Reem Kufi", sans-serif;
+      font-size: 0.58rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .ed-tab:hover { color: var(--ui-ink); border-color: var(--ui-gold); }
+
+    .ed-tab[aria-selected="true"] {
+      background: linear-gradient(150deg, var(--ui-gold-2), var(--ui-gold));
+      border-color: transparent;
+      color: #04211c;
+      font-weight: 600;
+    }
+
+    /* Scrollable form area. */
+    .editor__body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 0.9rem 1rem 1.2rem;
+    }
+
+    .editor__foot {
+      flex: 0 0 auto;
+      padding: 0.7rem 1rem calc(0.8rem + env(safe-area-inset-bottom, 0px));
+      border-top: 1px solid var(--ui-line);
+      background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.22));
+    }
+
+    .editor__status {
+      font-family: "Reem Kufi", sans-serif;
+      font-size: 0.56rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ui-ink-soft);
+      text-align: center;
+    }
+
+    .editor__status.is-error { color: var(--ui-danger); }
+
+    /* ---------- 7. Editor form widgets (used by builder.js) ---------- */
+    .ed-panel {
+      display: grid;
+      gap: 0.85rem;
+      align-content: start;
+    }
+
+    .ed-panel[hidden] { display: none; }
+
+    .ed-field {
+      display: grid;
+      gap: 0.3rem;
+    }
+
+    .ed-label {
+      font-family: "Reem Kufi", sans-serif;
+      font-size: 0.56rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ui-gold);
+    }
+
+    .ed-input,
+    .ed-textarea,
+    .ed-select {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border-radius: 10px;
+      border: 1px solid var(--ui-line);
+      background: rgba(0, 0, 0, 0.22);
+      color: var(--ui-ink);
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 1rem;
+      line-height: 1.4;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .ed-input::placeholder,
+    .ed-textarea::placeholder { color: rgba(243, 239, 225, 0.35); }
+
+    .ed-input:focus,
+    .ed-textarea:focus,
+    .ed-select:focus {
+      outline: none;
+      border-color: var(--ui-gold);
+      box-shadow: 0 0 0 3px var(--ui-glow);
+    }
+
+    .ed-textarea {
+      min-height: 84px;
+      resize: vertical;
+    }
+
+    .ed-select {
+      appearance: none;
+      -webkit-appearance: none;
+      padding-right: 2.2rem;
+      background-image:
+        linear-gradient(45deg, transparent 50%, var(--ui-gold) 50%),
+        linear-gradient(135deg, var(--ui-gold) 50%, transparent 50%);
+      background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
+      background-size: 6px 6px, 6px 6px;
+      background-repeat: no-repeat;
+    }
+
+    .ed-row {
+      display: grid;
+      gap: 0.7rem;
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 420px) {
+      .ed-row { grid-template-columns: 1fr 1fr; }
+    }
+
+    .ed-divider {
+      height: 1px;
+      background: var(--ui-line);
+      margin: 0.2rem 0;
+    }
+
+    .ed-help {
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: var(--ui-ink-soft);
+    }
+
+    .ed-empty {
+      padding: 0.9rem;
+      border: 1px dashed var(--ui-line);
+      border-radius: 12px;
+      color: var(--ui-ink-soft);
+      font-size: 0.88rem;
+      text-align: center;
+    }
+
+    .ed-warn {
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: var(--ui-danger);
+    }
+
+    .ed-media-name {
+      font-size: 0.82rem;
+      line-height: 1.45;
+      color: var(--ui-ink-soft);
+      overflow-wrap: anywhere;
+    }
+
+    /* Buttons inside the editor. */
+    .ed-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .ed-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      min-height: 38px;
+      padding: 0.42rem 0.85rem;
+      border-radius: 9px;
+      border: 1px solid var(--ui-line);
+      background: transparent;
+      color: var(--ui-ink);
+      font-family: "Reem Kufi", sans-serif;
+      font-size: 0.56rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .ed-btn:hover { border-color: var(--ui-gold); }
+
+    .ed-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .ed-btn--gold {
+      background: linear-gradient(150deg, var(--ui-gold-2), var(--ui-gold));
+      border-color: transparent;
+      color: #04211c;
+      font-weight: 600;
+    }
+
+    .ed-btn--danger {
+      border-color: rgba(255, 155, 155, 0.5);
+      color: var(--ui-danger);
+    }
+
+    .ed-btn--wide { width: 100%; }
+
+    /* File picker styled as a button. */
+    .ed-file {
+      position: relative;
+      overflow: hidden;
+      display: inline-flex;
+    }
+
+    .ed-file input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      font-size: 100px;
+    }
+
+    /* Checkbox row. */
+    .ed-check {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      min-height: 38px;
+      font-size: 0.95rem;
+      color: var(--ui-ink);
+    }
+
+    .ed-check input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      accent-color: #bf9546;
+    }
+
+    /* Collapsible event block. */
+    .ed-event {
+      border: 1px solid var(--ui-line);
+      border-radius: 12px;
+      background: var(--ui-panel-2);
+      overflow: hidden;
+    }
+
+    .ed-event > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.6rem;
+      padding: 0.7rem 0.85rem;
+      cursor: pointer;
+      list-style: none;
+      font-family: "Reem Kufi", sans-serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ui-ink);
+    }
+
+    .ed-event > summary::-webkit-details-marker { display: none; }
+
+    .ed-event > summary::after {
+      content: "+";
+      color: var(--ui-gold);
+      font-size: 1rem;
+      line-height: 1;
+    }
+
+    .ed-event[open] > summary::after { content: "–"; }
+
+    .ed-event__flag {
+      font-family: "Reem Kufi", sans-serif;
+      font-size: 0.5rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #04211c;
+      background: var(--ui-gold);
+      border-radius: 999px;
+      padding: 0.1rem 0.45rem;
+    }
+
+    .ed-event__body {
+      display: grid;
+      gap: 0.7rem;
+      padding: 0.8rem 0.85rem 0.9rem;
+      border-top: 1px solid var(--ui-line);
+    }
+
+    /* Photo thumbnails. */
+    .ed-thumbs {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+      gap: 0.45rem;
+    }
+
+    .ed-thumb {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--ui-line);
+      background: rgba(0, 0, 0, 0.25);
+    }
+
+    .ed-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .ed-thumb button {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.72);
+      color: #fff;
+      font-size: 0.8rem;
+      line-height: 1;
+    }
+
+    /* Theme swatches. */
+    .ed-themes {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.55rem;
+    }
+
+    @media (min-width: 420px) {
+      .ed-themes { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .ed-swatch {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.55rem 0.6rem;
+      border-radius: 10px;
+      border: 1px solid var(--ui-line);
+      background: transparent;
+      color: var(--ui-ink);
+      font-family: "Reem Kufi", sans-serif;
+      font-size: 0.52rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      text-align: left;
+    }
+
+    .ed-swatch:hover { border-color: var(--ui-gold); }
+
+    .ed-swatch[aria-pressed="true"] {
+      border-color: var(--ui-gold);
+      box-shadow: 0 0 0 2px var(--ui-glow);
+    }
+
+    .ed-swatch__dot {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    /* Preview dots for the four card themes. */
+    .ed-swatch__dot--emerald   { background: linear-gradient(135deg, #0a3b31, #e6c27e); }
+    .ed-swatch__dot--midnight  { background: linear-gradient(135deg, #101a3a, #e8cf94); }
+    .ed-swatch__dot--ivory-sage{ background: linear-gradient(135deg, #f4f0e3, #8a9a7b); }
+    .ed-swatch__dot--rose-gold { background: linear-gradient(135deg, #f6dfd8, #b76e79); }
+
+    /* ---------- 8. Scrim, FAB and toast ---------- */
+    .scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 65;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(2px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+
+    .scrim.is-open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Floating "Edit Card" button — mobile only. */
+    .edit-fab {
+      position: fixed;
+      left: 14px;
+      bottom: 14px;
+      z-index: 60;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-height: 46px;
+      padding: 0.6rem 1.15rem;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: linear-gradient(150deg, var(--ui-gold-2), var(--ui-gold));
+      color: #04211c;
+      font-family: "Reem Kufi", sans-serif;
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 600;
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .edit-fab:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+    }
+
+    .edit-fab svg {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+    }
+
+    /* Small message bubble ("Link copied", "Draft cleared"…). */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 84px;
+      z-index: 120;
+      max-width: min(88vw, 340px);
+      padding: 0.65rem 1.1rem;
+      border: 1px solid var(--ui-line);
+      border-radius: 999px;
+      background: var(--ui-panel);
+      color: var(--ui-ink);
+      font-family: "Reem Kufi", sans-serif;
+      font-size: 0.62rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: center;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      transform: translate(-50%, 16px);
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .toast.is-visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    /* ---------- 9. Desktop layout ---------- */
+    @media (min-width: 900px) {
+      /* Editor becomes a permanent left column. */
+      .editor {
+        position: static;
+        z-index: auto;
+        height: calc(100svh - var(--topbar-h));
+        max-height: none;
+        border-radius: 0;
+        border-top: 0;
+        border-right: 1px solid var(--ui-line);
+        box-shadow: none;
+        transform: none;
+      }
+
+      .editor::before { display: none; }
+
+      .editor__head { padding-top: 1rem; }
+
+      .editor__close { display: none; }
+
+      .workspace {
+        grid-template-columns: minmax(330px, 400px) 1fr;
+        align-items: start;
+      }
+
+      /* Preview takes the remaining space and stays in view. */
+      .preview {
+        position: sticky;
+        top: var(--topbar-h);
+        left: auto;
+        right: auto;
+        bottom: auto;
+        height: calc(100svh - var(--topbar-h));
+      }
+
+      .scrim { display: none !important; }
+      .edit-fab { display: none; }
+    }
+
+    /* Lock the page scroll only while the mobile sheet is open. */
+    @media (max-width: 899px) {
+      body.editor-open { overflow: hidden; }
+    }
+
+    /* ---------- 10. Reduced motion ---------- */
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+  </style>
 </head>
 
-<!-- "gate-closed" locks scrolling while the palace gate is on screen.
-     script.js removes this class after the doors open. -->
-<body class="gate-closed">
-
+<body>
   <!-- ============================================================
-       1. OPENING GATE SCENE
-       Two 3D door panels (rotateY in CSS), carved jaali pattern made
-       with an inline SVG pattern, gold ring handles, and a glowing diya.
-       script.js fills #gateLine and #gateTapText from the card data,
-       then adds .is-open to swing the doors apart.
+       TOP BAR
+       Download builds the single-file card, Reset restores the sample.
+       Both are wired up in builder.js.
        ============================================================ -->
-  <div id="gate" class="gate" role="dialog" aria-modal="true" aria-label="Open the wedding invitation">
-
-    <!-- Soft golden light that is revealed when the doors part -->
-    <div class="gate__bloom" aria-hidden="true"></div>
-
-    <!-- Warm bokeh lantern dots floating behind the doors -->
-    <div class="gate__lights" aria-hidden="true">
-      <span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span>
+  <header class="topbar">
+    <div class="topbar__brand">
+      <!-- Small crescent mark, drawn inline so there are no image files. -->
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path
+          d="M15.5 3a9 9 0 1 0 5.2 15.6A9.6 9.6 0 0 1 15.5 3z"
+          fill="currentColor"
+        />
+        <path
+          d="M19.4 5.6l.55 1.35 1.35.55-1.35.55-.55 1.35-.55-1.35-1.35-.55 1.35-.55z"
+          fill="currentColor"
+        />
+      </svg>
+      <span class="topbar__name">Nikah Card Builder</span>
     </div>
 
-    <div class="gate__stage">
-
-      <!-- Decorative arch that frames the two doors -->
-      <div class="gate__arch" aria-hidden="true"></div>
-
-      <div class="gate__doors">
-
-        <!-- LEFT DOOR -->
-        <div class="gate__door gate__door--left" aria-hidden="true">
-          <div class="gate__panel">
-            <!-- Carved jaali pattern: pure SVG, no image files -->
-            <svg class="gate__jaali" viewBox="0 0 200 400" preserveAspectRatio="none" focusable="false" aria-hidden="true">
-              <defs>
-                <pattern id="jaaliLeft" width="50" height="50" patternUnits="userSpaceOnUse">
-                  <path d="M25 2 L48 25 L25 48 L2 25 Z" fill="none" stroke="currentColor" stroke-width="1.2" />
-                  <circle cx="25" cy="25" r="6.5" fill="none" stroke="currentColor" stroke-width="1" />
-                  <path d="M0 0 L50 50 M50 0 L0 50" stroke="currentColor" stroke-width="0.5" opacity="0.45" />
-                </pattern>
-              </defs>
-              <rect width="200" height="400" fill="url(#jaaliLeft)" />
-            </svg>
-            <!-- Gold ring handle on the inner edge -->
-            <span class="gate__ring gate__ring--left"></span>
-          </div>
-        </div>
-
-        <!-- RIGHT DOOR -->
-        <div class="gate__door gate__door--right" aria-hidden="true">
-          <div class="gate__panel">
-            <svg class="gate__jaali" viewBox="0 0 200 400" preserveAspectRatio="none" focusable="false" aria-hidden="true">
-              <defs>
-                <pattern id="jaaliRight" width="50" height="50" patternUnits="userSpaceOnUse">
-                  <path d="M25 2 L48 25 L25 48 L2 25 Z" fill="none" stroke="currentColor" stroke-width="1.2" />
-                  <circle cx="25" cy="25" r="6.5" fill="none" stroke="currentColor" stroke-width="1" />
-                  <path d="M0 0 L50 50 M50 0 L0 50" stroke="currentColor" stroke-width="0.5" opacity="0.45" />
-                </pattern>
-              </defs>
-              <rect width="200" height="400" fill="url(#jaaliRight)" />
-            </svg>
-            <span class="gate__ring gate__ring--right"></span>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- Glowing diya (lamp) sitting in front of the doors -->
-      <div class="gate__diya" aria-hidden="true">
-        <span class="gate__diya-glow"></span>
-        <span class="gate__flame"></span>
-        <span class="gate__diya-bowl"></span>
-      </div>
-
-      <!-- Gate heading text, written by script.js from data.gate.line -->
-      <p class="gate__line" id="gateLine" dir="auto">|| Shubh Vivah ||</p>
-
-      <!-- Tap button = the only keyboard focusable control on this screen.
-           Its label text is replaced by script.js from data.gate.tapText -->
-      <button class="gate__tap" id="gateTap" type="button">
-        <span class="gate__tap-dot" aria-hidden="true"></span>
-        <span id="gateTapText">Tap to open</span>
+    <div class="topbar__actions">
+      <button id="resetBtn" class="btn btn--ghost" type="button">
+        Reset
+      </button>
+      <button id="downloadBtn" class="btn btn--gold" type="button">
+        Download Card
       </button>
     </div>
-  </div>
+  </header>
 
   <!-- ============================================================
-       2. PETAL / DUST CANVAS
-       Full screen, non-interactive. script.js draws max 40 particles
-       and stops when the tab is hidden or reduced motion is requested.
+       WORKSPACE
+       On phones the preview fills the screen and the editor slides up
+       as a sheet. On desktop they sit side by side.
        ============================================================ -->
-  <canvas id="fx" aria-hidden="true"></canvas>
+  <main class="workspace">
 
-  <!-- ============================================================
-       3. BACKGROUND MUSIC
-       src is set by script.js from data.music.src. Starts only after
-       the guest taps the gate (browsers block autoplay).
-       ============================================================ -->
-  <audio id="bgm" loop preload="none"></audio>
+    <!-- EDITOR PANEL — builder.js fills #editorTabs and #editorBody. -->
+    <aside id="editorPanel" class="editor" aria-label="Card editor">
+      <div class="editor__head">
+        <p class="editor__title">Edit Card</p>
+        <button
+          id="editorClose"
+          class="editor__close"
+          type="button"
+          aria-label="Close editor"
+        >×</button>
+      </div>
 
-  <!-- Mute / unmute toggle for the music -->
-  <button id="muteBtn" class="mute" type="button" aria-label="Mute music" aria-pressed="false">
-    <svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true">
-      <path class="mute__body" d="M4 9.5v5h3.6L12.5 18V6L7.6 9.5H4z" />
-      <path class="mute__wave" d="M15.8 9a4.4 4.4 0 0 1 0 6" fill="none" stroke-width="1.7" stroke-linecap="round" />
-      <path class="mute__wave" d="M18.4 6.6a7.6 7.6 0 0 1 0 10.8" fill="none" stroke-width="1.7" stroke-linecap="round" />
-      <path class="mute__slash" d="M4.5 4.5l15 15" fill="none" stroke-width="1.8" stroke-linecap="round" />
+      <!-- Short "how to use" note, exactly as requested. -->
+      <p class="ed-note">
+        <strong>How to use:</strong> Download, put the file in a folder as
+        <code>index.html</code>, drag the folder to
+        <a href="https://app.netlify.com/drop" target="_blank" rel="noopener noreferrer">Netlify Drop</a>,
+        and share the link.
+      </p>
+
+      <!-- Tab strip (Basic, Events, Story and Photos, Music, Contacts and RSVP, Theme). -->
+      <nav
+        id="editorTabs"
+        class="ed-tabs"
+        role="tablist"
+        aria-label="Editor sections"
+      ></nav>
+
+      <!-- Scrollable form area. -->
+      <div id="editorBody" class="editor__body"></div>
+
+      <!-- Live status line: "Draft saved", "Downloaded", errors… -->
+      <div id="editorFoot" class="editor__foot">
+        <p id="editorStatus" class="editor__status" role="status" aria-live="polite">
+          Draft saved automatically
+        </p>
+      </div>
+    </aside>
+
+    <!-- PREVIEW — a sandboxed iframe that receives the full card document. -->
+    <section class="preview" aria-label="Live card preview">
+      <iframe
+        id="previewFrame"
+        class="preview__frame"
+        title="Live preview of your Nikah invitation card"
+        sandbox="allow-scripts"
+        referrerpolicy="no-referrer"
+      ></iframe>
+
+      <div id="previewLoading" class="preview__loading">
+        <span class="preview__spinner" aria-hidden="true"></span>
+        <span>Preparing your card…</span>
+      </div>
+    </section>
+  </main>
+
+  <!-- Dark layer behind the mobile bottom sheet. -->
+  <div id="editorScrim" class="scrim" aria-hidden="true"></div>
+
+  <!-- Floating "Edit Card" button, phones only. -->
+  <button id="editFab" class="edit-fab" type="button" aria-label="Open the card editor">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        fill="currentColor"
+        d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.33-2.34a1 1 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+      />
     </svg>
+    Edit Card
   </button>
 
-  <!-- ============================================================
-       4. THE CARD
-       script.js rebuilds everything inside this <main> every time the
-       owner edits a field. Nothing inside it is hard-coded here.
-       ============================================================ -->
-  <main id="card"></main>
+  <!-- Small toast for short messages. -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <!-- ============================================================
-       5. EDITOR MOUNT POINT
-       editor.js injects the floating "Edit Card" button and drawer here.
-       The ZIP export deletes this whole div, so the final card has no
-       editing UI at all.
-       ============================================================ -->
-  <div id="editor-root"></div>
-
-  <!-- Card engine first, editor second. script.js never depends on editor.js. -->
-  <script src="script.js"></script>
-  <script src="editor.js"></script>
+  <!-- card.js first: it defines window.DEFAULT_CARD and window.buildCardHTML.
+       builder.js second: it uses both. Both are deferred, so the order holds. -->
+  <script src="card.js" defer></script>
+  <script src="builder.js" defer></script>
 </body>
 </html>
