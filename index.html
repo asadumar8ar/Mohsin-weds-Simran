@@ -1120,4 +1120,69 @@
 <script src="card.js"></script>
 <script src="builder.js"></script>
 
+<!-- Detective: 4-second health check (for the builder page only, not for guests) -->
+<script>
+(function () {
+  window.__errs = window.__errs || [];
+  window.addEventListener('error', function (e) {
+    try {
+      window.__errs.push(
+        'ERROR: ' + (e.message || 'unknown') +
+        ' | file: ' + (e.filename || '?') +
+        ' | line: ' + (e.lineno || '?') + ':' + (e.colno || '?')
+      );
+    } catch (x) {}
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    try {
+      var r = e && e.reason ? (e.reason.message || String(e.reason)) : 'unknown';
+      window.__errs.push('REJECTION: ' + r);
+    } catch (x) {}
+  });
+
+  function line(name, ok) { return name + ': ' + (ok ? 'OK' : 'MISSING YA ADHOORI'); }
+  setTimeout(function () {
+    var loader = document.getElementById('loader');
+    var editor = document.getElementById('editor');
+    var loaderVisible = false;
+    if (loader) {
+      var cs = window.getComputedStyle(loader);
+      loaderVisible = !loader.hidden && cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0';
+    }
+    var editorEmpty = !editor || editor.children.length === 0;
+    if (!loaderVisible && !editorEmpty && window.__errs.length === 0) { return; }
+
+    var lines = [
+      line('card-style.js', window.CARD_LOADED_STYLE),
+      line('card-runtime.js', window.CARD_LOADED_RUNTIME),
+      line('card-scenes.js', window.CARD_LOADED_SCENES),
+      line('card.js', window.CARD_LOADED_DATA),
+      'buildCardHTML: ' + typeof window.buildCardHTML,
+      'Editor ban gaya: ' + (editorEmpty ? 'NAHI (builder.js chala hi nahi ya ruk gaya)' : 'haan'),
+      '--- errors ---'
+    ].concat(window.__errs.length ? window.__errs : ['koi error pakda nahi gaya (page atka hua ho sakta hai)']);
+    var report = lines.join('\n');
+
+    var box = document.getElementById('errorBox') || document.body.appendChild(document.createElement('div'));
+    box.hidden = false;
+    box.style.cssText = 'display:block;position:fixed;left:8px;right:8px;top:8px;z-index:99999;background:#7a1020;color:#fff;padding:14px;border-radius:8px;font:14px/1.5 monospace;white-space:pre-wrap;max-height:80vh;overflow:auto';
+    box.textContent = 'REPORT (ye mujhe bhej do)\n\n' + report;
+    var b = document.createElement('button');
+    b.textContent = 'Copy report';
+    b.style.cssText = 'display:block;margin-top:10px;padding:8px 14px;font-size:14px';
+    b.onclick = function () {
+      var ta = document.createElement('textarea');
+      ta.value = report; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); b.textContent = 'Copied!'; } catch (x) {}
+      document.body.removeChild(ta);
+    };
+    box.appendChild(b);
+    if (loader) { loader.style.display = 'none'; }
+  }, 4000);
+})();
+</script>
+
+</body>
+</html>
+
 <!-- END OF FILE index.html -->
