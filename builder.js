@@ -1,743 +1,1049 @@
-/* ==========================================================================
-   builder.js — the editor UI, live preview, autosave, download and reset.
-   Wrapped in an IIFE so nothing leaks to window.
-   Uses only ES2017 syntax (no optional chaining, no ??, no class fields).
-   ========================================================================== */
+// builder.js — wires up the editor UI, state, live preview, download, reset.
+// Never an endless loader: always hides the loader in a finally block.
 (function () {
-  'use strict';
+  "use strict";
 
-  /* ---------- DOM refs ---------- */
-  var errorBox = document.getElementById('errorBox');
-  var loader = document.getElementById('loader');
-  var previewFrame = document.getElementById('previewFrame');
-  var downloadBtn = document.getElementById('downloadBtn');
-  var resetBtn = document.getElementById('resetBtn');
-  var saveNote = document.getElementById('saveNote');
-  var editorEl = document.getElementById('editor');
-  var editBtn = document.getElementById('editBtn');
-  var sheetBackdrop = document.getElementById('sheetBackdrop');
+  // ---------- DOM references ----------
+  var loader = document.getElementById("loader");
+  var errorBox = document.getElementById("errorBox");
+  var editor = document.getElementById("editor");
+  var previewFrame = document.getElementById("previewFrame");
+  var downloadBtn = document.getElementById("downloadBtn");
+  var resetBtn = document.getElementById("resetBtn");
+  var mobileEditBtn = document.getElementById("mobileEditBtn");
+  var editorBackdrop = document.getElementById("editorBackdrop");
+  var draftDot = document.getElementById("draftDot");
+  var draftStatus = document.getElementById("draftStatus");
 
-  /* ---------- global error plumbing ---------- */
-  function showError(msg) {
+  // ---------- Error reporting ----------
+  function showError(title, detail) {
     if (!errorBox) return;
-    errorBox.textContent = String(msg);
-    errorBox.hidden = false;
+    var html = "<strong>" + escapeForBox(title) + "</strong>";
+    if (detail) html += "<span>" + escapeForBox(detail) + "</span>";
+    errorBox.innerHTML = html;
+    errorBox.classList.add("visible");
+  }
+  function escapeForBox(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
   }
 
-  function hideLoader() {
-    if (loader) loader.hidden = true;
-  }
-
-  window.onerror = function (msg, file, line, col) {
-    var where = (file || '') + ':' + (line || '0') + (col ? ':' + col : '');
-    showError('Script error:\n' + msg + '\n' + where);
-    hideLoader();
+  window.onerror = function (message, file, line, col, err) {
+    var detail = (message || "Unknown error");
+    if (file) detail += "\nFile: " + file + (line ? ":" + line : "");
+    if (err && err.stack) detail += "\n" + String(err.stack).split("\n").slice(0, 3).join("\n");
+    showError("Something went wrong", detail);
+    return false;
   };
-  window.addEventListener('unhandledrejection', function (ev) {
-    var reason = ev && ev.reason ? (ev.reason.message || String(ev.reason)) : 'unknown';
-    showError('Unhandled promise rejection:\n' + reason);
-    hideLoader();
+  window.addEventListener("unhandledrejection", function (e) {
+    var reason = e && e.reason ? (e.reason.message || String(e.reason)) : "Unhandled rejection";
+    showError("Something went wrong", reason);
   });
 
-  /* ---------- check that all four support files loaded ---------- */
-  var missing = [];
-  if (!window.CARD_LOADED_STYLE || !window.CARD_CSS) {
-    missing.push('card-style.js did not load or is incomplete');
-  }
-  if (!window.CARD_LOADED_RUNTIME || typeof window.cardRuntime !== 'function') {
-    missing.push('card-runtime.js did not load or is incomplete');
-  }
-  if (!window.CARD_LOADED_DATA || !window.DEFAULT_CARD || typeof window.buildCardHTML !== 'function') {
-    missing.push('card.js did not load or is incomplete');
-  }
-  if (missing.length) {
-    showError('Cannot start the builder:\n- ' + missing.join('\n- '));
-    hideLoader();
-    return;
+  // ---------- Loader guarantee ----------
+  var loaderHidden = false;
+  function hideLoader() {
+    if (loaderHidden) return;
+    loaderHidden = true;
+    if (loader) {
+      loader.classList.add("hidden");
+      setTimeout(function () {
+        if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
+      }, 700);
+    }
   }
 
-  /* ---------- safe helpers ---------- */
-  function esc(v) {
-    return window.escapeHtml(v === null || v === undefined ? '' : v);
+  // ---------- Dependency check ----------
+  function checkDependencies() {
+    var missing = [];
+    if (!window.CARD_LOADED_STYLE) missing.push("card-style.js");
+    if (!window.CARD_LOADED_RUNTIME) missing.push("card-runtime.js");
+    if (!window.CARD_LOADED_SCENES) missing.push("card-scenes.js");
+    if (!window.CARD_LOADED_DATA) missing.push("card.js");
+    if (typeof window.buildCardHTML !== "function") {
+      if (missing.indexOf("card.js") === -1) missing.push("card.js (buildCardHTML missing)");
+    }
+    return missing;
   }
-  function clone(obj) {
-    return JSON.parse(JSON.stringify(obj));
+
+  // ---------- State ----------
+  var DRAFT_KEY = "nikahCardDraft";
+  var TEXT_DRAFT_KEY = "nikahCardDraftText";
+
+  function deepClone(o) {
+    // JSON clone is fine for our data shapes (strings, numbers, booleans, arrays, objects).
+    return JSON.parse(JSON.stringify(o));
   }
-  function slug(s) {
-    return String(s || '').toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40);
-  }
-  function setPath(obj, path, value) {
-    var parts = path.split('.');
+
+  function getByPath(obj, path) {
+    var parts = path.split(".");
     var cur = obj;
-    var i;
-    for (i = 0; i < parts.length - 1; i++) {
-      var k = parts[i];
-      if (cur[k] === null || typeof cur[k] !== 'object') cur[k] = {};
-      cur = cur[k];
+    for (var i = 0; i < parts.length; i++) {
+      if (cur == null) return undefined;
+      cur = cur[parts[i]];
+    }
+    return cur;
+  }
+  function setByPath(obj, path, value) {
+    var parts = path.split(".");
+    var cur = obj;
+    for (var i = 0; i < parts.length - 1; i++) {
+      var key = parts[i];
+      if (cur[key] == null || typeof cur[key] !== "object") cur[key] = {};
+      cur = cur[key];
     }
     cur[parts[parts.length - 1]] = value;
   }
 
-  /* ==========================================================================
-     STATE
-     ========================================================================== */
-  var DRAFT_KEY = 'nikahCardDraft';
-  var state = null;
-
-  function deepMerge(target, source) {
-    if (!source || typeof source !== 'object') return target;
-    var keys = Object.keys(source);
-    var i;
-    for (i = 0; i < keys.length; i++) {
-      var k = keys[i];
-      if (k === 'gallery' || k === 'music') continue; // media stays in memory only
-      var sv = source[k];
-      if (Array.isArray(sv)) {
-        target[k] = clone(sv);
-      } else if (sv !== null && typeof sv === 'object') {
-        if (target[k] === null || typeof target[k] !== 'object' || Array.isArray(target[k])) {
-          target[k] = {};
-        }
-        deepMerge(target[k], sv);
-      } else {
-        target[k] = sv;
-      }
-    }
-    return target;
-  }
+  var state = deepClone(window.DEFAULT_CARD);
 
   function loadDraft() {
     try {
       var raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return null;
-      return JSON.parse(raw);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function normalizeState() {
-    if (!state || typeof state !== 'object') state = clone(window.DEFAULT_CARD);
-    if (!Array.isArray(state.events)) state.events = [];
-    if (state.events.length) {
-      var hasMain = false;
-      var i;
-      for (i = 0; i < state.events.length; i++) {
-        if (state.events[i] && state.events[i].isMain) { hasMain = true; break; }
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        // Merge draft values into a fresh default clone.
+        mergeDeep(state, parsed);
       }
-      if (!hasMain) state.events[0].isMain = true;
-    }
-    if (!Array.isArray(state.gallery)) state.gallery = [];
-    if (!Array.isArray(state.contacts)) state.contacts = [];
-    if (state.contacts.length === 0) state.contacts.push({ label: '', phone: '' });
-    if (state.contacts.length > 3) state.contacts = state.contacts.slice(0, 3);
-    if (typeof state.music !== 'string') state.music = '';
+    } catch (e) {}
+    try {
+      var rawText = localStorage.getItem(TEXT_DRAFT_KEY);
+      if (rawText) {
+        var parsedText = JSON.parse(rawText);
+        mergeTextOnly(state, parsedText);
+      }
+    } catch (e) {}
   }
 
-  function buildInitialState() {
-    var base = clone(window.DEFAULT_CARD);
-    var draft = loadDraft();
-    if (draft && typeof draft === 'object') {
-      deepMerge(base, draft);
+  function mergeDeep(target, source) {
+    if (!source || typeof source !== "object") return;
+    // Only merge media-safe content — we never store media in localStorage anyway.
+    for (var k in source) {
+      if (!Object.prototype.hasOwnProperty.call(source, k)) continue;
+      var v = source[k];
+      if (v == null) continue;
+      if (typeof v === "object" && !Array.isArray(v)) {
+        if (typeof target[k] !== "object" || target[k] === null) target[k] = {};
+        mergeDeep(target[k], v);
+      } else {
+        target[k] = v;
+      }
     }
-    state = base;
-    normalizeState();
   }
 
-  /* ---------- autosave (text fields only) ---------- */
-  var saveTimer = null;
-  function scheduleSave() {
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveDraft, 700);
+  function mergeTextOnly(target, source) {
+    // Same as mergeDeep but skip data: URLs (media should not be persisted).
+    if (!source || typeof source !== "object") return;
+    for (var k in source) {
+      if (!Object.prototype.hasOwnProperty.call(source, k)) continue;
+      var v = source[k];
+      if (v == null) continue;
+      if (typeof v === "string" && v.indexOf("data:") === 0) continue;
+      if (typeof v === "object" && !Array.isArray(v)) {
+        if (typeof target[k] !== "object" || target[k] === null) target[k] = {};
+        mergeTextOnly(target[k], v);
+      } else if (Array.isArray(v)) {
+        // For arrays, prefer loaded draft text but drop media entries.
+        var clean = [];
+        for (var i = 0; i < v.length; i++) {
+          var item = v[i];
+          if (typeof item === "string" && item.indexOf("data:") === 0) continue;
+          clean.push(item);
+        }
+        target[k] = clean;
+      } else {
+        target[k] = v;
+      }
+    }
   }
+
   function saveDraft() {
     try {
-      var copy = clone(state);
-      copy.gallery = [];
-      copy.music = '';
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(copy));
-      if (saveNote) {
-        saveNote.classList.add('flash');
-        setTimeout(function () { saveNote.classList.remove('flash'); }, 900);
-      }
+      // Save text-only draft (media lives in memory only).
+      var textOnly = stripMedia(deepClone(state));
+      localStorage.setItem(TEXT_DRAFT_KEY, JSON.stringify(textOnly));
+      // Also save a media-free version for the main key (backward compat).
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(textOnly));
+      setDraftStatus("Draft saved automatically", true);
     } catch (e) {
-      // quota or private mode: keep working, just don't persist
+      setDraftStatus("Draft could not be saved (storage full?)", false);
     }
   }
 
-  /* ==========================================================================
-     LIVE PREVIEW (debounced 300ms)
-     ========================================================================== */
-  var previewTimer = null;
-  function updatePreview() {
+  function stripMedia(obj) {
+    if (obj == null) return obj;
+    if (typeof obj === "string") {
+      if (obj.indexOf("data:") === 0) return "";
+      return obj;
+    }
+    if (Array.isArray(obj)) {
+      var out = [];
+      for (var i = 0; i < obj.length; i++) {
+        var v = stripMedia(obj[i]);
+        if (v === "") continue;
+        out.push(v);
+      }
+      return out;
+    }
+    if (typeof obj === "object") {
+      var copy = {};
+      for (var k in obj) {
+        if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+        copy[k] = stripMedia(obj[k]);
+      }
+      return copy;
+    }
+    return obj;
+  }
+
+  function setDraftStatus(msg, ok) {
+    if (draftStatus) draftStatus.textContent = msg;
+    if (draftDot) {
+      draftDot.className = "dot" + (ok ? "" : " off");
+    }
+  }
+
+  // ---------- Bind text fields ----------
+  function bindField(el) {
+    var path = el.getAttribute("data-bind");
+    if (!path) return;
+
+    // Set initial value.
+    var current = getByPath(state, path);
+    if (el.type === "checkbox") {
+      el.checked = !!current;
+    } else {
+      el.value = current == null ? "" : String(current);
+    }
+
+    var eventName = (el.type === "checkbox" || el.tagName === "SELECT") ? "change" : "input";
+    el.addEventListener(eventName, function () {
+      var val;
+      if (el.type === "checkbox") val = el.checked;
+      else val = el.value;
+      setByPath(state, path, val);
+      schedulePreview();
+      debounceSave();
+      if (path === "theme") applyThemeToSwatches();
+    });
+  }
+
+  function bindAllFields() {
+    var els = editor.querySelectorAll("[data-bind]");
+    for (var i = 0; i < els.length; i++) bindField(els[i]);
+  }
+
+  // ---------- Save debounce ----------
+  var saveTimer = 0;
+  function debounceSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    setDraftStatus("Saving...", true);
+    saveTimer = setTimeout(function () {
+      saveTimer = 0;
+      saveDraft();
+    }, 700);
+  }
+
+  // ---------- Live preview (debounced 300ms) ----------
+  var previewTimer = 0;
+  var lastPreviewHTML = "";
+  var previewError = false;
+
+  function buildCurrent() {
+    try {
+      return window.buildCardHTML(state);
+    } catch (e) {
+      showError("Preview failed", e.message || String(e));
+      return "";
+    }
+  }
+
+  function schedulePreview() {
     if (previewTimer) clearTimeout(previewTimer);
     previewTimer = setTimeout(function () {
-      try {
-        previewFrame.srcdoc = window.buildCardHTML(state);
-      } catch (e) {
-        showError('Preview could not be built: ' + (e && e.message ? e.message : String(e)));
-      }
+      previewTimer = 0;
+      renderPreview();
     }, 300);
   }
 
-  /* ==========================================================================
-     INPUT HANDLING (one delegated listener for the whole editor)
-     ========================================================================== */
-  function handleInput(e) {
-    var t = e.target;
-    if (!t || !t.getAttribute) return;
-    var path = t.getAttribute('data-path');
-    if (!path) return;
-    var value;
-    if (t.type === 'checkbox') value = !!t.checked;
-    else if (t.type === 'file') return; // file inputs handled separately
-    else value = t.value;
-    setPath(state, path, value);
-    scheduleSave();
-    updatePreview();
+  function renderPreview() {
+    if (!previewFrame) return;
+    var html = buildCurrent();
+    if (!html) {
+      previewError = true;
+      return;
+    }
+    previewError = false;
+    if (html === lastPreviewHTML) return;
+    lastPreviewHTML = html;
+    try {
+      previewFrame.srcdoc = html;
+    } catch (e) {
+      showError("Preview could not be rendered", e.message || String(e));
+    }
   }
 
-  /* ==========================================================================
-     PANEL: BASIC
-     ========================================================================== */
-  function renderBasicPanel() {
-    var el = document.getElementById('panel-basic');
-    if (!el) return;
-    var D = state;
-    el.innerHTML =
-      '<div class="field"><label>Seal initials (shown on the envelope)</label>' +
-        '<input type="text" data-path="sealInitials" value="' + esc(D.sealInitials) + '"></div>' +
-
-      '<p class="field-label">Bismillah</p>' +
-      '<div class="field"><label>Arabic</label>' +
-        '<input type="text" dir="rtl" data-path="bismillah.ar" value="' + esc(D.bismillah.ar) + '"></div>' +
-      '<div class="field"><label>Translation</label>' +
-        '<textarea data-path="bismillah.sub" rows="2">' + esc(D.bismillah.sub) + '</textarea></div>' +
-
-      '<div class="field"><label>Salam greeting</label>' +
-        '<input type="text" data-path="salam" value="' + esc(D.salam) + '"></div>' +
-
-      '<div class="switch-row"><span>Show Ayah section</span>' +
-        '<input type="checkbox" data-path="ayah.show" ' + (D.ayah.show ? 'checked' : '') + '></div>' +
-      '<div class="field"><label>Ayah Arabic</label>' +
-        '<textarea dir="rtl" data-path="ayah.ar" rows="2">' + esc(D.ayah.ar) + '</textarea></div>' +
-      '<div class="field"><label>Ayah translation</label>' +
-        '<textarea data-path="ayah.translation" rows="3">' + esc(D.ayah.translation) + '</textarea></div>' +
-      '<div class="field"><label>Ayah reference</label>' +
-        '<input type="text" data-path="ayah.reference" value="' + esc(D.ayah.reference) + '"></div>' +
-
-      '<p class="field-label">Invitation text</p>' +
-      '<div class="field"><label>English</label>' +
-        '<textarea data-path="inviteEn" rows="3">' + esc(D.inviteEn) + '</textarea></div>' +
-      '<div class="field"><label>Roman Urdu</label>' +
-        '<textarea data-path="inviteRoman" rows="3">' + esc(D.inviteRoman) + '</textarea></div>' +
-      '<div class="field"><label>Host family line</label>' +
-        '<input type="text" data-path="host" value="' + esc(D.host) + '"></div>' +
-
-      '<p class="field-label">Couple</p>' +
-      '<div class="field"><label>First person name</label>' +
-        '<input type="text" data-path="person1.name" value="' + esc(D.person1.name) + '"></div>' +
-      '<div class="field"><label>First person sub-line</label>' +
-        '<input type="text" data-path="person1.sub" value="' + esc(D.person1.sub) + '"></div>' +
-      '<div class="field"><label>Second person name</label>' +
-        '<input type="text" data-path="person2.name" value="' + esc(D.person2.name) + '"></div>' +
-      '<div class="field"><label>Second person sub-line</label>' +
-        '<input type="text" data-path="person2.sub" value="' + esc(D.person2.sub) + '"></div>';
+  // ---------- Tabs ----------
+  function setupTabs() {
+    var tabBtns = editor.querySelectorAll(".tab-btn");
+    var panels = editor.querySelectorAll(".tab-panel");
+    function activate(tabName) {
+      for (var i = 0; i < tabBtns.length; i++) {
+        var b = tabBtns[i];
+        if (b.getAttribute("data-tab") === tabName) {
+          b.classList.add("active");
+          b.setAttribute("aria-selected", "true");
+        } else {
+          b.classList.remove("active");
+          b.setAttribute("aria-selected", "false");
+        }
+      }
+      for (var j = 0; j < panels.length; j++) {
+        var p = panels[j];
+        if (p.id === "tab-" + tabName) {
+          p.classList.add("active");
+        } else {
+          p.classList.remove("active");
+        }
+      }
+    }
+    for (var i = 0; i < tabBtns.length; i++) {
+      (function (btn) {
+        btn.addEventListener("click", function () {
+          activate(btn.getAttribute("data-tab"));
+        });
+      })(tabBtns[i]);
+    }
   }
 
-  /* ==========================================================================
-     PANEL: EVENTS
-     ========================================================================== */
-  function renderEventsPanel() {
-    var el = document.getElementById('panel-events');
-    if (!el) return;
-    var html = '<p class="hint">Each event becomes a flip card in the timeline. The main event drives the countdown.</p>';
-    state.events.forEach(function (ev, i) {
-      var name = ev.name || ('Event ' + (i + 1));
-      html +=
-        '<details class="item-card" data-event-details="' + i + '">' +
-          '<summary class="item-head">' +
-            '<span class="item-title">' + esc(name) + '</span>' +
-            (ev.isMain ? '<span class="badge-main">Main</span>' : '') +
-          '</summary>' +
-          '<div class="field"><label>Name</label>' +
-            '<input type="text" data-path="events.' + i + '.name" value="' + esc(ev.name) + '"></div>' +
-          '<div class="row2">' +
-            '<div class="field"><label>Date</label>' +
-              '<input type="date" data-path="events.' + i + '.date" value="' + esc(ev.date) + '"></div>' +
-            '<div class="field"><label>Time (24h)</label>' +
-              '<input type="time" data-path="events.' + i + '.time" value="' + esc(ev.time) + '"></div>' +
-          '</div>' +
-          '<div class="field"><label>Venue</label>' +
-            '<input type="text" data-path="events.' + i + '.venue" value="' + esc(ev.venue) + '"></div>' +
-          '<div class="field"><label>Address</label>' +
-            '<textarea data-path="events.' + i + '.address" rows="2">' + esc(ev.address) + '</textarea></div>' +
-          '<div class="field"><label>Map link (https://...)</label>' +
-            '<input type="url" data-path="events.' + i + '.mapLink" value="' + esc(ev.mapLink) + '"></div>' +
-          '<div class="field"><label>Dress code</label>' +
-            '<input type="text" data-path="events.' + i + '.dress" value="' + esc(ev.dress) + '"></div>' +
-          '<div class="field"><label>Note</label>' +
-            '<input type="text" data-path="events.' + i + '.note" value="' + esc(ev.note) + '"></div>' +
-          '<div class="btn-row">' +
-            '<button class="btn btn-sm" type="button" data-action="up" data-index="' + i + '">Up</button>' +
-            '<button class="btn btn-sm" type="button" data-action="down" data-index="' + i + '">Down</button>' +
-            (!ev.isMain
-              ? '<button class="btn btn-sm btn-gold" type="button" data-action="main" data-index="' + i + '">Set main</button>'
-              : '') +
-            '<button class="btn btn-sm danger" type="button" data-action="delete" data-index="' + i + '">Delete</button>' +
-          '</div>' +
-        '</details>';
+  // ---------- Events UI ----------
+  var expandedEvents = {};
+
+  function renderEvents() {
+    var list = document.getElementById("evList");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!state.events) state.events = [];
+    for (var i = 0; i < state.events.length; i++) {
+      (function (idx) {
+        var ev = state.events[idx];
+        if (!ev) return;
+        var item = document.createElement("div");
+        item.className = "ev-item" + (ev.isMain ? " is-main" : "") + (expandedEvents[idx] ? " open" : "");
+        item.setAttribute("data-idx", String(idx));
+
+        var head = document.createElement("div");
+        head.className = "ev-head";
+        head.setAttribute("role", "button");
+        head.setAttribute("tabindex", "0");
+        head.setAttribute("aria-expanded", expandedEvents[idx] ? "true" : "false");
+        head.innerHTML =
+          '<span class="ev-caret" aria-hidden="true">&#9656;</span>' +
+          '<span class="ev-title" dir="auto">' + escapeHtml(ev.name || "Untitled event") + '</span>' +
+          (ev.isMain ? '<span class="ev-badge">Main</span>' : '');
+        head.addEventListener("click", function () {
+          expandedEvents[idx] = !expandedEvents[idx];
+          renderEvents();
+        });
+        head.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+            e.preventDefault();
+            expandedEvents[idx] = !expandedEvents[idx];
+            renderEvents();
+          }
+        });
+        item.appendChild(head);
+
+        var body = document.createElement("div");
+        body.className = "ev-body";
+
+        body.appendChild(makeField("Name", "text", ev.name, function (v) { ev.name = v; saveDraft(); schedulePreview(); }, "Event name"));
+        body.appendChild(makeField("Date", "date", ev.date, function (v) { ev.date = v; saveDraft(); schedulePreview(); }));
+        body.appendChild(makeField("Time", "time", ev.time, function (v) { ev.time = v; saveDraft(); schedulePreview(); }));
+        body.appendChild(makeField("Venue", "text", ev.venue, function (v) { ev.venue = v; saveDraft(); schedulePreview(); }, "Venue name"));
+        body.appendChild(makeField("Address", "text", ev.address, function (v) { ev.address = v; saveDraft(); schedulePreview(); }, "Full address"));
+        body.appendChild(makeField("Map link", "text", ev.mapLink, function (v) { ev.mapLink = v; saveDraft(); schedulePreview(); }, "https://... (optional)"));
+        body.appendChild(makeField("Dress code", "text", ev.dress, function (v) { ev.dress = v; saveDraft(); schedulePreview(); }, "Optional"));
+        body.appendChild(makeField("Note", "text", ev.note, function (v) { ev.note = v; saveDraft(); schedulePreview(); }, "Optional"));
+
+        var actions = document.createElement("div");
+        actions.className = "ev-actions";
+
+        var upBtn = document.createElement("button");
+        upBtn.type = "button";
+        upBtn.className = "btn-sm";
+        upBtn.textContent = "Move up";
+        upBtn.disabled = idx === 0;
+        upBtn.addEventListener("click", function () {
+          if (idx === 0) return;
+          var tmp = state.events[idx - 1];
+          state.events[idx - 1] = state.events[idx];
+          state.events[idx] = tmp;
+          var tmpExp = expandedEvents[idx - 1];
+          expandedEvents[idx - 1] = expandedEvents[idx];
+          expandedEvents[idx] = tmpExp;
+          renderEvents();
+          saveDraft();
+          schedulePreview();
+        });
+        actions.appendChild(upBtn);
+
+        var downBtn = document.createElement("button");
+        downBtn.type = "button";
+        downBtn.className = "btn-sm";
+        downBtn.textContent = "Move down";
+        downBtn.disabled = idx === state.events.length - 1;
+        downBtn.addEventListener("click", function () {
+          if (idx >= state.events.length - 1) return;
+          var tmp = state.events[idx + 1];
+          state.events[idx + 1] = state.events[idx];
+          state.events[idx] = tmp;
+          var tmpExp = expandedEvents[idx + 1];
+          expandedEvents[idx + 1] = expandedEvents[idx];
+          expandedEvents[idx] = tmpExp;
+          renderEvents();
+          saveDraft();
+          schedulePreview();
+        });
+        actions.appendChild(downBtn);
+
+        var mainBtn = document.createElement("button");
+        mainBtn.type = "button";
+        mainBtn.className = "btn-sm accent";
+        mainBtn.textContent = ev.isMain ? "Is main" : "Set as main";
+        mainBtn.disabled = ev.isMain;
+        mainBtn.addEventListener("click", function () {
+          for (var k = 0; k < state.events.length; k++) state.events[k].isMain = (k === idx);
+          renderEvents();
+          saveDraft();
+          schedulePreview();
+        });
+        actions.appendChild(mainBtn);
+
+        var delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "btn-sm danger";
+        delBtn.textContent = "Delete";
+        delBtn.disabled = state.events.length <= 1;
+        delBtn.addEventListener("click", function () {
+          if (state.events.length <= 1) return;
+          var wasMain = ev.isMain;
+          state.events.splice(idx, 1);
+          delete expandedEvents[idx];
+          // Re-index expandedEvents.
+          var newExp = {};
+          var keys = Object.keys(expandedEvents);
+          for (var k = 0; k < keys.length; k++) {
+            var n = parseInt(keys[k], 10);
+            if (isNaN(n)) continue;
+            if (n > idx) newExp[n - 1] = expandedEvents[n];
+            else if (n < idx) newExp[n] = expandedEvents[n];
+          }
+          expandedEvents = newExp;
+          // Ensure exactly one main.
+          var hasMain = false;
+          for (var m = 0; m < state.events.length; m++) if (state.events[m].isMain) hasMain = true;
+          if (!hasMain || wasMain) state.events[0].isMain = true;
+          renderEvents();
+          saveDraft();
+          schedulePreview();
+        });
+        actions.appendChild(delBtn);
+
+        body.appendChild(actions);
+        item.appendChild(body);
+        list.appendChild(item);
+      })(i);
+    }
+  }
+
+  function makeField(labelText, type, value, onChange, placeholder) {
+    var wrap = document.createElement("div");
+    wrap.className = "field";
+    var label = document.createElement("label");
+    label.className = "field-label";
+    label.textContent = labelText;
+    var input = document.createElement("input");
+    input.type = type;
+    input.value = value == null ? "" : String(value);
+    if (placeholder) input.placeholder = placeholder;
+    var id = "ev-" + labelText.toLowerCase().replace(/\s+/g, "-") + "-" + Math.random().toString(36).slice(2, 7);
+    input.id = id;
+    label.setAttribute("for", id);
+    input.addEventListener("input", function () { onChange(input.value); });
+    input.addEventListener("change", function () { onChange(input.value); });
+    wrap.appendChild(label);
+    wrap.appendChild(input);
+    return wrap;
+  }
+
+  function setupEventAdd() {
+    var addBtn = document.getElementById("addEventBtn");
+    if (!addBtn) return;
+    addBtn.addEventListener("click", function () {
+      state.events.push({
+        name: "New Event",
+        date: "",
+        time: "18:00",
+        venue: "",
+        address: "",
+        mapLink: "",
+        dress: "",
+        note: "",
+        isMain: false
+      });
+      expandedEvents[state.events.length - 1] = true;
+      renderEvents();
+      saveDraft();
+      schedulePreview();
     });
-    html += '<button class="btn btn-gold" id="addEventBtn" type="button" style="margin-top:8px;">+ Add Event</button>';
-    el.innerHTML = html;
   }
 
-  function addEvent() {
-    state.events.push({
-      name: 'New Event', date: '', time: '', venue: '',
-      address: '', mapLink: '', dress: '', note: '', isMain: false
+  // ---------- Theme swatches ----------
+  var THEMES = [
+    { id: "gulabi", name: "Gulabi", colors: ["#FAF3EA", "#D9A0A6", "#8E2E4A", "#C9A24B", "#3A1426"] },
+    { id: "emerald", name: "Emerald", colors: ["#F6F1E4", "#A8C0A0", "#1E5C3F", "#C9A24B", "#0F3D2A"] },
+    { id: "midnight", name: "Midnight", colors: ["#F2F0E8", "#B8C0D8", "#2A3E6E", "#C6B27A", "#0F1A33"] },
+    { id: "ivory-sage", name: "Ivory Sage", colors: ["#FBF8F0", "#C9CDB8", "#5C6B4A", "#B89A4A", "#3D4232"] }
+  ];
+
+  function renderThemes() {
+    var grid = document.getElementById("themeGrid");
+    if (!grid) return;
+    grid.innerHTML = "";
+    for (var i = 0; i < THEMES.length; i++) {
+      (function (t) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "theme-swatch" + (state.theme === t.id ? " active" : "");
+        btn.setAttribute("data-theme-id", t.id);
+        btn.setAttribute("aria-label", "Theme " + t.name);
+        var swatch = '<div class="swatch-colors">';
+        for (var c = 0; c < t.colors.length; c++) {
+          swatch += '<span style="background:' + t.colors[c] + '"></span>';
+        }
+        swatch += '</div><div class="swatch-name">' + escapeHtml(t.name) + '</div>';
+        btn.innerHTML = swatch;
+        btn.addEventListener("click", function () {
+          state.theme = t.id;
+          applyThemeToSwatches();
+          schedulePreview();
+          saveDraft();
+        });
+        grid.appendChild(btn);
+      })(THEMES[i]);
+    }
+  }
+
+  function applyThemeToSwatches() {
+    var swatches = document.querySelectorAll(".theme-swatch");
+    for (var i = 0; i < swatches.length; i++) {
+      var id = swatches[i].getAttribute("data-theme-id");
+      if (id === state.theme) swatches[i].classList.add("active");
+      else swatches[i].classList.remove("active");
+    }
+  }
+
+  // ---------- Contacts UI ----------
+  function renderContacts() {
+    var list = document.getElementById("contactsList");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!state.contacts) state.contacts = [];
+    for (var i = 0; i < state.contacts.length; i++) {
+      (function (idx) {
+        var c = state.contacts[idx] || { label: "", phone: "" };
+        var wrap = document.createElement("div");
+        wrap.style.marginBottom = "10px";
+        wrap.style.paddingBottom = "10px";
+        wrap.style.borderBottom = "1px dashed rgba(201,162,75,0.22)";
+
+        var labelField = makeField("Label", "text", c.label, function (v) {
+          state.contacts[idx].label = v;
+          saveDraft();
+          schedulePreview();
+        }, "e.g. Uncle Ahmed");
+        wrap.appendChild(labelField);
+
+        var phoneField = makeField("Phone", "tel", c.phone, function (v) {
+          state.contacts[idx].phone = v;
+          saveDraft();
+          schedulePreview();
+        }, "919876543210");
+        wrap.appendChild(phoneField);
+
+        var delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "btn-sm danger";
+        delBtn.textContent = "Remove contact";
+        delBtn.addEventListener("click", function () {
+          state.contacts.splice(idx, 1);
+          renderContacts();
+          saveDraft();
+          schedulePreview();
+        });
+        wrap.appendChild(delBtn);
+
+        list.appendChild(wrap);
+      })(i);
+    }
+    if (state.contacts.length < 3) {
+      var addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "add-btn";
+      addBtn.textContent = "+ Add contact";
+      addBtn.addEventListener("click", function () {
+        state.contacts.push({ label: "", phone: "" });
+        renderContacts();
+        saveDraft();
+        schedulePreview();
+      });
+      list.appendChild(addBtn);
+    }
+  }
+
+  // ---------- Guest link maker ----------
+  function setupGuestLink() {
+    var urlInput = document.getElementById("f-pageUrl");
+    var nameInput = document.getElementById("f-guestName");
+    var resultInput = document.getElementById("f-guestResult");
+    var copyBtn = document.getElementById("copyGuestBtn");
+    if (!urlInput || !nameInput || !resultInput || !copyBtn) return;
+
+    function update() {
+      var url = (urlInput.value || "").trim();
+      var name = (nameInput.value || "").trim();
+      if (!url) { resultInput.value = ""; return; }
+      var sep = url.indexOf("?") === -1 ? "?" : "&";
+      resultInput.value = url + sep + "guest=" + encodeURIComponent(name);
+    }
+    urlInput.addEventListener("input", update);
+    nameInput.addEventListener("input", update);
+    copyBtn.addEventListener("click", function () {
+      if (!resultInput.value) return;
+      var text = resultInput.value;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          copyBtn.textContent = "Copied";
+          setTimeout(function () { copyBtn.textContent = "Copy"; }, 1500);
+        }).catch(function () { fallbackCopy(text, copyBtn); });
+      } else {
+        fallbackCopy(text, copyBtn);
+      }
     });
-    renderEventsPanel();
-    scheduleSave();
-    updatePreview();
   }
 
-  function moveEvent(idx, dir) {
-    var n = idx + dir;
-    if (n < 0 || n >= state.events.length) return;
-    var tmp = state.events[idx];
-    state.events[idx] = state.events[n];
-    state.events[n] = tmp;
-    renderEventsPanel();
-    scheduleSave();
-    updatePreview();
+  function fallbackCopy(text, btn) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      btn.textContent = "Copied";
+      setTimeout(function () { btn.textContent = "Copy"; }, 1500);
+    } catch (e) {}
   }
 
-  function setMainEvent(idx) {
-    state.events.forEach(function (ev, i) { ev.isMain = (i === idx); });
-    renderEventsPanel();
-    scheduleSave();
-    updatePreview();
-  }
-
-  function deleteEvent(idx) {
-    if (!window.confirm('Delete this event?')) return;
-    state.events.splice(idx, 1);
-    var hasMain = state.events.some(function (ev) { return ev && ev.isMain; });
-    if (!hasMain && state.events.length) state.events[0].isMain = true;
-    renderEventsPanel();
-    scheduleSave();
-    updatePreview();
-  }
-
-  function handleEventsClick(e) {
-    var t = e.target;
-    if (!t || !t.getAttribute) return;
-    if (t.id === 'addEventBtn') { addEvent(); return; }
-    var action = t.getAttribute('data-action');
-    if (!action) return;
-    var idx = parseInt(t.getAttribute('data-index'), 10);
-    if (isNaN(idx)) return;
-    if (action === 'up') moveEvent(idx, -1);
-    else if (action === 'down') moveEvent(idx, 1);
-    else if (action === 'main') setMainEvent(idx);
-    else if (action === 'delete') deleteEvent(idx);
-  }
-
-  /* ==========================================================================
-     PANEL: STORY & PHOTOS (includes Dua toggles)
-     ========================================================================== */
-  function renderStoryPanel() {
-    var el = document.getElementById('panel-story');
-    if (!el) return;
-    var gal = '';
-    state.gallery.forEach(function (src, i) {
-      gal +=
-        '<div class="photo-cell">' +
-          '<img src="' + esc(src) + '" alt="Photo ' + (i + 1) + '">' +
-          '<button type="button" class="photo-remove" data-remove-photo="' + i + '" ' +
-            'aria-label="Remove photo ' + (i + 1) + '">&times;</button>' +
-        '</div>';
-    });
-    var disabled = state.gallery.length >= 8 ? ' disabled' : '';
-
-    el.innerHTML =
-      '<div class="switch-row"><span>Show Our Story section</span>' +
-        '<input type="checkbox" data-path="story.show" ' + (state.story.show ? 'checked' : '') + '></div>' +
-      '<div class="field"><label>Story title</label>' +
-        '<input type="text" data-path="story.title" value="' + esc(state.story.title) + '"></div>' +
-      '<div class="field"><label>Story text</label>' +
-        '<textarea data-path="story.text" rows="4">' + esc(state.story.text) + '</textarea></div>' +
-
-      '<div class="switch-row"><span>Show Dua section</span>' +
-        '<input type="checkbox" data-path="dua.show" ' + (state.dua.show ? 'checked' : '') + '></div>' +
-      '<div class="field"><label>Dua Arabic</label>' +
-        '<input type="text" dir="rtl" data-path="dua.ar" value="' + esc(state.dua.ar) + '"></div>' +
-      '<div class="field"><label>Dua translation</label>' +
-        '<textarea data-path="dua.translation" rows="2">' + esc(state.dua.translation) + '</textarea></div>' +
-
-      '<p class="field-label">Gallery (' + state.gallery.length + '/8)</p>' +
-      '<p class="hint">Photos are resized to 1200px max and stored as JPEG in the card.</p>' +
-      '<input type="file" id="photoInput" accept="image/*" multiple' + disabled + '>' +
-      '<div class="photo-grid">' + gal + '</div>';
-  }
-
+  // ---------- Image uploads ----------
   function resizeImage(file, maxDim, quality, cb) {
+    if (!file || !/^image\//.test(file.type)) { cb(null); return; }
     var reader = new FileReader();
-    reader.onload = function (ev) {
+    reader.onload = function (e) {
       var img = new Image();
       img.onload = function () {
-        var w = img.width;
-        var h = img.height;
-        var scale = Math.min(1, maxDim / Math.max(w, h));
-        var nw = Math.max(1, Math.round(w * scale));
-        var nh = Math.max(1, Math.round(h * scale));
-        var canvas = document.createElement('canvas');
-        canvas.width = nw;
-        canvas.height = nh;
-        var ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, nw, nh);
         try {
-          cb(canvas.toDataURL('image/jpeg', quality));
-        } catch (e) {
+          var w = img.naturalWidth || img.width;
+          var h = img.naturalHeight || img.height;
+          var scale = Math.min(1, maxDim / Math.max(w, h));
+          var nw = Math.max(1, Math.round(w * scale));
+          var nh = Math.max(1, Math.round(h * scale));
+          var canvas = document.createElement("canvas");
+          canvas.width = nw;
+          canvas.height = nh;
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, nw, nh);
+          // Preserve PNG transparency for floral frame.
+          var isPng = /png/i.test(file.type);
+          var dataUrl = isPng ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", quality);
+          cb(dataUrl);
+        } catch (err) {
           cb(null);
         }
       };
       img.onerror = function () { cb(null); };
-      img.src = ev.target.result;
+      img.src = e.target.result;
     };
     reader.onerror = function () { cb(null); };
     reader.readAsDataURL(file);
   }
 
+  function setupImageUpload(inputId, previewId, fieldPath, isPng) {
+    var input = document.getElementById(inputId);
+    var preview = document.getElementById(previewId);
+    if (!input || !preview) return;
+
+    function renderPreview(src) {
+      preview.innerHTML = "";
+      if (!src) return;
+      var wrap = document.createElement("div");
+      wrap.className = "img-preview";
+      var img = document.createElement("img");
+      img.alt = "Preview";
+      img.src = src;
+      wrap.appendChild(img);
+      preview.appendChild(wrap);
+      var delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "btn-sm danger";
+      delBtn.textContent = "Remove";
+      delBtn.style.marginTop = "8px";
+      delBtn.addEventListener("click", function () {
+        setByPath(state, fieldPath, "");
+        renderPreview("");
+        saveDraft();
+        schedulePreview();
+      });
+      preview.appendChild(delBtn);
+    }
+
+    renderPreview(getByPath(state, fieldPath));
+
+    input.addEventListener("change", function () {
+      var f = input.files && input.files[0];
+      if (!f) return;
+      resizeImage(f, 1200, 0.75, function (dataUrl) {
+        if (!dataUrl) return;
+        setByPath(state, fieldPath, dataUrl);
+        renderPreview(dataUrl);
+        saveDraft();
+        schedulePreview();
+        input.value = "";
+      });
+    });
+  }
+
+  function setupGalleryUpload() {
+    var input = document.getElementById("f-galleryInput");
+    var grid = document.getElementById("galleryGrid");
+    if (!input || !grid) return;
+
+    function render() {
+      grid.innerHTML = "";
+      var arr = state.gallery || [];
+      for (var i = 0; i < arr.length; i++) {
+        (function (idx) {
+          var thumb = document.createElement("div");
+          thumb.className = "thumb";
+          var img = document.createElement("img");
+          img.alt = "Gallery photo " + (idx + 1);
+          img.src = arr[idx];
+          thumb.appendChild(img);
+          var del = document.createElement("button");
+          del.type = "button";
+          del.className = "thumb-del";
+          del.setAttribute("aria-label", "Remove photo " + (idx + 1));
+          del.textContent = "\u00d7";
+          del.addEventListener("click", function () {
+            state.gallery.splice(idx, 1);
+            render();
+            saveDraft();
+            schedulePreview();
+          });
+          thumb.appendChild(del);
+          grid.appendChild(thumb);
+        })(i);
+      }
+    }
+    render();
+
+    input.addEventListener("change", function () {
+      var files = input.files;
+      if (!files || !files.length) return;
+      var max = 8;
+      var remaining = max - (state.gallery ? state.gallery.length : 0);
+      var toProcess = Math.min(files.length, remaining);
+      var done = 0;
+      for (var i = 0; i < toProcess; i++) {
+        (function (file) {
+          resizeImage(file, 1200, 0.75, function (dataUrl) {
+            if (dataUrl) {
+              if (!state.gallery) state.gallery = [];
+              state.gallery.push(dataUrl);
+            }
+            done++;
+            if (done === toProcess) {
+              render();
+              saveDraft();
+              schedulePreview();
+              input.value = "";
+            }
+          });
+        })(files[i]);
+      }
+    });
+  }
+
+  // ---------- Music upload ----------
+  function setupMusicUpload() {
+    var input = document.getElementById("f-musicInput");
+    var preview = document.getElementById("musicPreview");
+    var warn = document.getElementById("musicWarn");
+    var removeBtn = document.getElementById("removeMusicBtn");
+    if (!input || !preview) return;
+
+    function render() {
+      preview.innerHTML = "";
+      if (!state.music) {
+        if (removeBtn) removeBtn.style.display = "none";
+        return;
+      }
+      var row = document.createElement("div");
+      row.className = "audio-row";
+      var name = document.createElement("div");
+      name.className = "audio-name";
+      name.textContent = "Background music loaded";
+      var audio = document.createElement("audio");
+      audio.controls = true;
+      audio.src = state.music;
+      row.appendChild(name);
+      row.appendChild(audio);
+      preview.appendChild(row);
+      if (removeBtn) removeBtn.style.display = "inline-block";
+    }
+    render();
+
+    input.addEventListener("change", function () {
+      var f = input.files && input.files[0];
+      if (!f) return;
+      if (!/audio\/(mpeg|mp3)/i.test(f.type) && !/\.mp3$/i.test(f.name)) {
+        showMusicWarn("Please choose an MP3 file.", true);
+        input.value = "";
+        return;
+      }
+      if (f.size > 3 * 1024 * 1024) {
+        showMusicWarn("This file is over 3 MB. It will still work, but the card will be heavier to download.", false);
+      } else {
+        showMusicWarn("", false);
+      }
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        state.music = e.target.result;
+        render();
+        saveDraft();
+        schedulePreview();
+        input.value = "";
+      };
+      reader.onerror = function () {
+        showMusicWarn("Could not read this file.", true);
+        input.value = "";
+      };
+      reader.readAsDataURL(f);
+    });
+
+    if (removeBtn) {
+      removeBtn.addEventListener("click", function () {
+        state.music = "";
+        render();
+        showMusicWarn("", false);
+        saveDraft();
+        schedulePreview();
+      });
+    }
+  }
+
+  function showMusicWarn(msg, isError) {
+    var warn = document.getElementById("musicWarn");
+    if (!warn) return;
+    if (!msg) { warn.style.display = "none"; warn.textContent = ""; return; }
+    warn.style.display = "block";
+    warn.textContent = msg;
+    warn.className = "field-hint " + (isError ? "err" : "warn");
+  }
+
+  // ---------- Media total size warning ----------
   function checkMediaSize() {
     var total = 0;
-    state.gallery.forEach(function (s) { total += s.length; });
-    if (state.music) total += state.music.length;
-    if (total > 8 * 1024 * 1024) {
-      window.alert('Total media is over 8MB. The card may be slow to open. Consider removing a photo or the music.');
-    }
-  }
-
-  function handlePhotoFiles(files) {
-    if (!files || !files.length) return;
-    var remaining = 8 - state.gallery.length;
-    if (remaining <= 0) return;
-    var list = Array.prototype.slice.call(files, 0, remaining);
-    var done = 0;
-    var total = list.length;
-    list.forEach(function (file) {
-      if (!file || !/^image\//.test(file.type)) {
-        done += 1;
-        if (done === total) finish();
-        return;
+    var keys = ["heroImage", "couplePhoto", "floralFrame", "envelopeImage", "music"];
+    for (var i = 0; i < keys.length; i++) {
+      var v = state[keys[i]];
+      if (typeof v === "string" && v.indexOf("data:") === 0) {
+        total += v.length;
       }
-      resizeImage(file, 1200, 0.75, function (dataUrl) {
-        if (dataUrl) state.gallery.push(dataUrl);
-        done += 1;
-        if (done === total) finish();
-      });
-    });
-    function finish() {
-      renderStoryPanel();
-      scheduleSave();
-      updatePreview();
-      checkMediaSize();
+    }
+    if (state.gallery) {
+      for (var g = 0; g < state.gallery.length; g++) {
+        if (typeof state.gallery[g] === "string") total += state.gallery[g].length;
+      }
+    }
+    if (total > 8 * 1024 * 1024) {
+      var warn = document.getElementById("musicWarn");
+      if (warn) {
+        warn.style.display = "block";
+        warn.className = "field-hint warn";
+        warn.textContent = "Total media is over 8 MB. The downloaded card will be large and slower to open on phones.";
+      }
     }
   }
 
-  function handleStoryChange(e) {
-    var t = e.target;
-    if (!t) return;
-    if (t.id === 'photoInput') {
-      handlePhotoFiles(t.files);
-      t.value = '';
-    }
+  // ---------- Download ----------
+  function slugify(s) {
+    return String(s || "card")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "card";
   }
 
-  function handleStoryClick(e) {
-    var t = e.target;
-    if (!t || !t.getAttribute) return;
-    var rm = t.getAttribute('data-remove-photo');
-    if (rm === null) return;
-    var idx = parseInt(rm, 10);
-    if (isNaN(idx)) return;
-    state.gallery.splice(idx, 1);
-    renderStoryPanel();
-    scheduleSave();
-    updatePreview();
-  }
-
-  /* ==========================================================================
-     PANEL: MUSIC
-     ========================================================================== */
-  function renderMusicPanel() {
-    var el = document.getElementById('panel-music');
-    if (!el) return;
-    var cur = '';
-    if (state.music) {
-      var kb = Math.round(state.music.length / 1024);
-      cur =
-        '<p class="hint">Current audio: uploaded (' + kb + ' KB)</p>' +
-        '<button class="btn btn-sm danger" id="removeMusic" type="button">Remove music</button>';
-    }
-    el.innerHTML =
-      '<p class="field-label">Nasheed or soft background sound (optional)</p>' +
-      '<p class="hint">Plays when the guest taps the seal. Keep it under 3MB for fast loading. MP3 recommended.</p>' +
-      '<input type="file" id="musicInput" accept="audio/*">' +
-      cur;
-  }
-
-  function handleMusicChange(e) {
-    var t = e.target;
-    if (!t || t.id !== 'musicInput') return;
-    var file = t.files && t.files[0];
-    t.value = '';
-    if (!file) return;
-    if (!/^audio\//.test(file.type)) {
-      window.alert('Please choose an audio file (MP3, M4A, OGG).');
+  function downloadCard() {
+    var html = buildCurrent();
+    if (!html) {
+      showError("Download failed", "The card could not be built. Please check the editor for errors.");
       return;
     }
-    if (file.size > 3 * 1024 * 1024) {
-      if (!window.confirm('This audio is over 3MB. Large files make the card slow to open. Continue?')) {
-        return;
-      }
-    }
-    var reader = new FileReader();
-    reader.onload = function (ev) {
-      state.music = String(ev.target.result || '');
-      renderMusicPanel();
-      scheduleSave();
-      updatePreview();
-      checkMediaSize();
-    };
-    reader.onerror = function () {
-      window.alert('Could not read the audio file.');
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function handleMusicClick(e) {
-    var t = e.target;
-    if (!t || t.id !== 'removeMusic') return;
-    state.music = '';
-    renderMusicPanel();
-    scheduleSave();
-    updatePreview();
-  }
-
-  /* ==========================================================================
-     PANEL: CONTACTS & RSVP
-     ========================================================================== */
-  function renderRsvpPanel() {
-    var el = document.getElementById('panel-rsvp');
-    if (!el) return;
-    var contactsHtml = '';
-    state.contacts.forEach(function (c, i) {
-      contactsHtml +=
-        '<div class="row2">' +
-          '<div class="field"><label>Label ' + (i + 1) + '</label>' +
-            '<input type="text" data-path="contacts.' + i + '.label" value="' + esc(c.label) + '"></div>' +
-          '<div class="field"><label>Phone</label>' +
-            '<input type="tel" data-path="contacts.' + i + '.phone" value="' + esc(c.phone) + '"></div>' +
-        '</div>';
-    });
-
-    var addBtn = state.contacts.length < 3
-      ? '<button class="btn btn-sm" id="addContact" type="button">+ Add contact</button>'
-      : '';
-
-    el.innerHTML =
-      '<div class="switch-row"><span>Show RSVP section</span>' +
-        '<input type="checkbox" data-path="rsvp.show" ' + (state.rsvp.show ? 'checked' : '') + '></div>' +
-      '<div class="field"><label>WhatsApp number (country code, digits only)</label>' +
-        '<input type="tel" data-path="rsvp.whatsapp" value="' + esc(state.rsvp.whatsapp) + '"></div>' +
-      '<div class="field"><label>RSVP note</label>' +
-        '<input type="text" data-path="rsvp.note" value="' + esc(state.rsvp.note) + '"></div>' +
-      '<p class="field-label">Contacts (up to 3)</p>' +
-      contactsHtml +
-      addBtn +
-      '<p class="hint">Contacts appear inside the RSVP section of the finished card.</p>';
-  }
-
-  function handleRsvpClick(e) {
-    var t = e.target;
-    if (!t || t.id !== 'addContact') return;
-    if (state.contacts.length >= 3) return;
-    state.contacts.push({ label: '', phone: '' });
-    renderRsvpPanel();
-    scheduleSave();
-    updatePreview();
-  }
-
-  /* ==========================================================================
-     PANEL: THEME
-     ========================================================================== */
-  function renderThemePanel() {
-    var el = document.getElementById('panel-theme');
-    if (!el) return;
-    var themes = [
-      { id: 'emerald',    label: 'Emerald',    bg: '#08241b', fg: '#d4af37' },
-      { id: 'midnight',   label: 'Midnight',   bg: '#09162c', fg: '#d6b25c' },
-      { id: 'ivory-sage', label: 'Ivory Sage', bg: '#f6f3e9', fg: '#8a6a1c' },
-      { id: 'rose-gold',  label: 'Rose Gold',  bg: '#2d1019', fg: '#e0a9a0' }
-    ];
-    var html = '<p class="hint">Pick a colour palette for the invitation card.</p><div class="theme-grid">';
-    themes.forEach(function (t) {
-      html +=
-        '<button class="theme-btn' + (state.theme === t.id ? ' active' : '') + '" ' +
-          'type="button" data-theme-id="' + t.id + '">' +
-          '<span class="swatch" style="background:' + t.bg + ';border-color:' + t.fg + '"></span>' +
-          '<span>' + t.label + '</span>' +
-        '</button>';
-    });
-    html += '</div>';
-    el.innerHTML = html;
-  }
-
-  function handleThemeClick(e) {
-    var t = e.target;
-    while (t && t !== this && (!t.getAttribute || !t.getAttribute('data-theme-id'))) {
-      t = t.parentNode;
-    }
-    if (!t || t === this) return;
-    var id = t.getAttribute('data-theme-id');
-    if (!id) return;
-    state.theme = id;
-    renderThemePanel();
-    scheduleSave();
-    updatePreview();
-  }
-
-  /* ==========================================================================
-     TABS
-     ========================================================================== */
-  function setupTabs() {
-    var tabs = document.querySelectorAll('.tab');
-    var panels = document.querySelectorAll('.panel');
-    Array.prototype.forEach.call(tabs, function (t) {
-      t.addEventListener('click', function () {
-        var name = t.getAttribute('data-tab');
-        Array.prototype.forEach.call(tabs, function (x) {
-          var active = x.getAttribute('data-tab') === name;
-          x.classList.toggle('active', active);
-          x.setAttribute('aria-selected', active ? 'true' : 'false');
-        });
-        Array.prototype.forEach.call(panels, function (p) {
-          p.classList.toggle('active', p.getAttribute('data-panel') === name);
-        });
-      });
-    });
-  }
-
-  /* ==========================================================================
-     MOBILE SHEET
-     ========================================================================== */
-  function setupSheet() {
-    if (!editorEl || !editBtn || !sheetBackdrop) return;
-    editBtn.addEventListener('click', function () {
-      editorEl.classList.add('open');
-      sheetBackdrop.hidden = false;
-    });
-    sheetBackdrop.addEventListener('click', function () {
-      editorEl.classList.remove('open');
-      sheetBackdrop.hidden = true;
-    });
-    var handle = editorEl.querySelector('.sheet-handle');
-    if (handle) {
-      handle.style.cursor = 'pointer';
-      handle.addEventListener('click', function () {
-        editorEl.classList.remove('open');
-        sheetBackdrop.hidden = true;
-      });
-    }
-  }
-
-  /* ==========================================================================
-     DOWNLOAD & RESET
-     ========================================================================== */
-  function downloadCard() {
     try {
-      var html = window.buildCardHTML(state);
-      var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      var n1 = slugify(state.person1 && state.person1.name);
+      var n2 = slugify(state.person2 && state.person2.name);
+      var fname = n1 + "-" + n2 + "-nikah-card.html";
+      var blob = new Blob([html], { type: "text/html;charset=utf-8" });
       var url = URL.createObjectURL(blob);
-      var n1 = slug(state.person1 && state.person1.name) || 'groom';
-      var n2 = slug(state.person2 && state.person2.name) || 'bride';
-      var a = document.createElement('a');
+      var a = document.createElement("a");
       a.href = url;
-      a.download = n1 + '-' + n2 + '-nikah-card.html';
+      a.download = fname;
       document.body.appendChild(a);
       a.click();
       setTimeout(function () {
         if (a.parentNode) a.parentNode.removeChild(a);
         URL.revokeObjectURL(url);
-      }, 400);
-      try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
-      setTimeout(function () { window.location.reload(); }, 1500);
+      }, 500);
+
+      downloadBtn.textContent = "Downloaded!";
+      downloadBtn.disabled = true;
+      setDraftStatus("Card downloaded. Clearing draft...", true);
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(TEXT_DRAFT_KEY);
+      } catch (e) {}
+      setTimeout(function () {
+        window.location.reload();
+      }, 1500);
     } catch (e) {
-      showError('Download failed: ' + (e && e.message ? e.message : String(e)));
+      showError("Download failed", e.message || String(e));
     }
   }
 
-  function resetAll() {
-    if (!window.confirm('Reset the card and clear the draft? This cannot be undone.')) return;
-    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+  // ---------- Reset ----------
+  function resetCard() {
+    var ok = window.confirm("Clear all your work and start fresh? This cannot be undone.");
+    if (!ok) return;
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+      localStorage.removeItem(TEXT_DRAFT_KEY);
+    } catch (e) {}
     window.location.reload();
   }
 
-  /* ==========================================================================
-     INIT — everything runs here, in a try/catch, with a finally that hides
-     the loader so we never show an endless spinner.
-     ========================================================================== */
-  function init() {
-    buildInitialState();
-    setupTabs();
-    setupSheet();
-
-    // delegated input handling
-    document.addEventListener('input', handleInput);
-    document.addEventListener('change', handleInput);
-    document.addEventListener('change', handleStoryChange);
-    document.addEventListener('change', handleMusicChange);
-
-    // per-panel click handlers (delegated so they survive re-renders)
-    var panelEvents = document.getElementById('panel-events');
-    if (panelEvents) panelEvents.addEventListener('click', handleEventsClick);
-    var panelStory = document.getElementById('panel-story');
-    if (panelStory) panelStory.addEventListener('click', handleStoryClick);
-    var panelMusic = document.getElementById('panel-music');
-    if (panelMusic) panelMusic.addEventListener('click', handleMusicClick);
-    var panelRsvp = document.getElementById('panel-rsvp');
-    if (panelRsvp) panelRsvp.addEventListener('click', handleRsvpClick);
-    var panelTheme = document.getElementById('panel-theme');
-    if (panelTheme) panelTheme.addEventListener('click', handleThemeClick);
-
-    // render all panels before the first preview
-    renderBasicPanel();
-    renderEventsPanel();
-    renderStoryPanel();
-    renderMusicPanel();
-    renderRsvpPanel();
-    renderThemePanel();
-
-    // header buttons
-    if (downloadBtn) downloadBtn.addEventListener('click', downloadCard);
-    if (resetBtn) resetBtn.addEventListener('click', resetAll);
-
-    // first preview
-    updatePreview();
+  // ---------- Mobile edit sheet ----------
+  function setupMobileSheet() {
+    if (!mobileEditBtn || !editor || !editorBackdrop) return;
+    function open() {
+      editor.classList.add("sheet-open");
+      editorBackdrop.classList.add("visible");
+    }
+    function close() {
+      editor.classList.remove("sheet-open");
+      editorBackdrop.classList.remove("visible");
+    }
+    mobileEditBtn.addEventListener("click", open);
+    editorBackdrop.addEventListener("click", close);
+    // Close when the user switches to the preview at mobile widths.
+    window.addEventListener("resize", function () {
+      if (window.innerWidth > 900) close();
+    });
   }
 
-  try {
-    init();
-  } catch (err) {
-    showError('Builder failed to start: ' + (err && err.message ? err.message : String(err)));
-  } finally {
-    hideLoader();
+  // ---------- Boot ----------
+  function boot() {
+    try {
+      var missing = checkDependencies();
+      if (missing.length) {
+        showError(
+          "Some files are missing",
+          "Please make sure these files are present: " + missing.join(", ")
+        );
+        hideLoader();
+        return;
+      }
+
+      // Load draft before binding fields.
+      loadDraft();
+
+      // Bind all text fields.
+      bindAllFields();
+
+      // Tabs.
+      setupTabs();
+
+      // Events.
+      renderEvents();
+      setupEventAdd();
+
+      // Theme.
+      renderThemes();
+      applyThemeToSwatches();
+
+      // Contacts.
+      renderContacts();
+
+      // Guest link.
+      setupGuestLink();
+
+      // Image uploads.
+      setupImageUpload("f-heroImageInput", "heroImagePreview", "heroImage", false);
+      setupImageUpload("f-couplePhotoInput", "couplePhotoPreview", "couplePhoto", false);
+      setupImageUpload("f-floralFrameInput", "floralFramePreview", "floralFrame", true);
+      setupImageUpload("f-envelopeImageInput", "envelopeImagePreview", "envelopeImage", false);
+
+      // Gallery.
+      setupGalleryUpload();
+
+      // Music.
+      setupMusicUpload();
+
+      // Media size warning check.
+      checkMediaSize();
+
+      // Buttons.
+      if (downloadBtn) downloadBtn.addEventListener("click", downloadCard);
+      if (resetBtn) resetBtn.addEventListener("click", resetCard);
+
+      // Mobile sheet.
+      setupMobileSheet();
+
+      // Initial preview render (immediately, not debounced).
+      renderPreview();
+
+      // Save the draft once after load so a fresh session has something to restore.
+      setTimeout(function () {
+        setDraftStatus("Draft saved automatically", true);
+      }, 400);
+    } catch (e) {
+      showError("Builder failed to start", e.message || String(e));
+    } finally {
+      hideLoader();
+    }
   }
 
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
 })();
+
 // END OF FILE builder.js
