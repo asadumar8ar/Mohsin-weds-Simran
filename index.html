@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="maroon">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Mobile first: tell phones to use their real width and allow zoom (accessibility) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#3b0d12" />
+  <meta name="description" content="A cinematic Indian wedding invitation — open the gate, see the celebrations, RSVP in one tap." />
+  <title>Wedding Invitation</title>
+
+  <!-- Fonts: Great Vibes (names), Cormorant Garamond (body), Cinzel (small caps labels),
+       Amiri (Urdu/Arabic), Tiro Devanagari Hindi (Hindi). The final card rewrites this file
+       and keeps the same links, so the exported card looks identical. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Cinzel:wght@400;500;600&family=Amiri:ital,wght@0,400;0,700;1,400&family=Tiro+Devanagari+Hindi:ital@0;1&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- The single stylesheet. style.css holds every theme, layout and animation. -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<!-- "gate-closed" locks scrolling while the palace gate is on screen.
+     script.js removes this class after the doors open. -->
+<body class="gate-closed">
+
+  <!-- ============================================================
+       1. OPENING GATE SCENE
+       Two 3D door panels (rotateY in CSS), carved jaali pattern made
+       with an inline SVG pattern, gold ring handles, and a glowing diya.
+       script.js fills #gateLine and #gateTapText from the card data,
+       then adds .is-open to swing the doors apart.
+       ============================================================ -->
+  <div id="gate" class="gate" role="dialog" aria-modal="true" aria-label="Open the wedding invitation">
+
+    <!-- Soft golden light that is revealed when the doors part -->
+    <div class="gate__bloom" aria-hidden="true"></div>
+
+    <!-- Warm bokeh lantern dots floating behind the doors -->
+    <div class="gate__lights" aria-hidden="true">
+      <span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span>
+    </div>
+
+    <div class="gate__stage">
+
+      <!-- Decorative arch that frames the two doors -->
+      <div class="gate__arch" aria-hidden="true"></div>
+
+      <div class="gate__doors">
+
+        <!-- LEFT DOOR -->
+        <div class="gate__door gate__door--left" aria-hidden="true">
+          <div class="gate__panel">
+            <!-- Carved jaali pattern: pure SVG, no image files -->
+            <svg class="gate__jaali" viewBox="0 0 200 400" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+              <defs>
+                <pattern id="jaaliLeft" width="50" height="50" patternUnits="userSpaceOnUse">
+                  <path d="M25 2 L48 25 L25 48 L2 25 Z" fill="none" stroke="currentColor" stroke-width="1.2" />
+                  <circle cx="25" cy="25" r="6.5" fill="none" stroke="currentColor" stroke-width="1" />
+                  <path d="M0 0 L50 50 M50 0 L0 50" stroke="currentColor" stroke-width="0.5" opacity="0.45" />
+                </pattern>
+              </defs>
+              <rect width="200" height="400" fill="url(#jaaliLeft)" />
+            </svg>
+            <!-- Gold ring handle on the inner edge -->
+            <span class="gate__ring gate__ring--left"></span>
+          </div>
+        </div>
+
+        <!-- RIGHT DOOR -->
+        <div class="gate__door gate__door--right" aria-hidden="true">
+          <div class="gate__panel">
+            <svg class="gate__jaali" viewBox="0 0 200 400" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+              <defs>
+                <pattern id="jaaliRight" width="50" height="50" patternUnits="userSpaceOnUse">
+                  <path d="M25 2 L48 25 L25 48 L2 25 Z" fill="none" stroke="currentColor" stroke-width="1.2" />
+                  <circle cx="25" cy="25" r="6.5" fill="none" stroke="currentColor" stroke-width="1" />
+                  <path d="M0 0 L50 50 M50 0 L0 50" stroke="currentColor" stroke-width="0.5" opacity="0.45" />
+                </pattern>
+              </defs>
+              <rect width="200" height="400" fill="url(#jaaliRight)" />
+            </svg>
+            <span class="gate__ring gate__ring--right"></span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Glowing diya (lamp) sitting in front of the doors -->
+      <div class="gate__diya" aria-hidden="true">
+        <span class="gate__diya-glow"></span>
+        <span class="gate__flame"></span>
+        <span class="gate__diya-bowl"></span>
+      </div>
+
+      <!-- Gate heading text, written by script.js from data.gate.line -->
+      <p class="gate__line" id="gateLine" dir="auto">|| Shubh Vivah ||</p>
+
+      <!-- Tap button = the only keyboard focusable control on this screen.
+           Its label text is replaced by script.js from data.gate.tapText -->
+      <button class="gate__tap" id="gateTap" type="button">
+        <span class="gate__tap-dot" aria-hidden="true"></span>
+        <span id="gateTapText">Tap to open</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       2. PETAL / DUST CANVAS
+       Full screen, non-interactive. script.js draws max 40 particles
+       and stops when the tab is hidden or reduced motion is requested.
+       ============================================================ -->
+  <canvas id="fx" aria-hidden="true"></canvas>
+
+  <!-- ============================================================
+       3. BACKGROUND MUSIC
+       src is set by script.js from data.music.src. Starts only after
+       the guest taps the gate (browsers block autoplay).
+       ============================================================ -->
+  <audio id="bgm" loop preload="none"></audio>
+
+  <!-- Mute / unmute toggle for the music -->
+  <button id="muteBtn" class="mute" type="button" aria-label="Mute music" aria-pressed="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true">
+      <path class="mute__body" d="M4 9.5v5h3.6L12.5 18V6L7.6 9.5H4z" />
+      <path class="mute__wave" d="M15.8 9a4.4 4.4 0 0 1 0 6" fill="none" stroke-width="1.7" stroke-linecap="round" />
+      <path class="mute__wave" d="M18.4 6.6a7.6 7.6 0 0 1 0 10.8" fill="none" stroke-width="1.7" stroke-linecap="round" />
+      <path class="mute__slash" d="M4.5 4.5l15 15" fill="none" stroke-width="1.8" stroke-linecap="round" />
+    </svg>
+  </button>
+
+  <!-- ============================================================
+       4. THE CARD
+       script.js rebuilds everything inside this <main> every time the
+       owner edits a field. Nothing inside it is hard-coded here.
+       ============================================================ -->
+  <main id="card"></main>
+
+  <!-- ============================================================
+       5. EDITOR MOUNT POINT
+       editor.js injects the floating "Edit Card" button and drawer here.
+       The ZIP export deletes this whole div, so the final card has no
+       editing UI at all.
+       ============================================================ -->
+  <div id="editor-root"></div>
+
+  <!-- Card engine first, editor second. script.js never depends on editor.js. -->
+  <script src="script.js"></script>
+  <script src="editor.js"></script>
+</body>
+</html>
